@@ -1,6 +1,10 @@
 defmodule SymphonyElixir.LinearGraphqlMcpServerTest do
   use SymphonyElixir.TestSupport
 
+  # CI sometimes needs a few seconds to spawn the Node-based MCP server and
+  # receive the first line-delimited JSON-RPC response.
+  @response_timeout 5_000
+
   test "linear_graphql MCP server accepts Claude CLI jsonl transport and lists tools" do
     node_binary = System.find_executable("node")
 
@@ -38,7 +42,7 @@ defmodule SymphonyElixir.LinearGraphqlMcpServerTest do
           }) <> "\n"
         )
 
-        assert_receive {^port, {:data, {:eol, initialize_response}}}, 1_000
+        assert_receive {^port, {:data, {:eol, initialize_response}}}, @response_timeout
 
         assert %{
                  "id" => 1,
@@ -68,7 +72,7 @@ defmodule SymphonyElixir.LinearGraphqlMcpServerTest do
           }) <> "\n"
         )
 
-        assert_receive {^port, {:data, {:eol, tools_response}}}, 1_000
+        assert_receive {^port, {:data, {:eol, tools_response}}}, @response_timeout
 
         assert %{
                  "id" => 2,
