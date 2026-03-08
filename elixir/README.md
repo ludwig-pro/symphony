@@ -15,10 +15,9 @@ This directory contains the current Elixir/OTP implementation of Symphony, based
 
 1. Polls Linear for candidate work
 2. Creates an isolated workspace per issue
-3. Launches Codex in [App Server mode](https://developers.openai.com/codex/app-server/) inside the
-   workspace
-4. Sends a workflow prompt to Codex
-5. Keeps Codex working on the issue until the work is done
+3. Launches a compatible app-server command inside the workspace
+4. Sends a workflow prompt to the configured coding agent
+5. Keeps the coding agent working on the issue until the work is done
 
 During app-server sessions, Symphony also serves a client-side `linear_graphql` tool so that repo
 skills can make raw Linear GraphQL calls.
@@ -110,6 +109,8 @@ Title: {{ issue.title }} Body: {{ issue.description }}
 Notes:
 
 - If a value is missing, defaults are used.
+- The config key remains `codex.command` because Symphony expects a Codex-compatible app-server
+  process. Codex works directly; Claude Code works through the bundled Node bridge below.
 - Safer Codex defaults are used when policy fields are omitted:
   - `codex.approval_policy` defaults to `{"reject":{"sandbox_approval":true,"rules":true,"mcp_elicitations":true}}`
   - `codex.thread_sandbox` defaults to `workspace-write`
@@ -143,6 +144,39 @@ hooks:
 codex:
   command: "$CODEX_BIN app-server --model gpt-5.3-codex"
 ```
+
+### Using Claude Code
+
+Symphony now includes a checked-in Claude Code bridge at `scripts/claude_code_app_server.mjs`.
+The bridge runs Anthropic's current Claude Agent SDK for Claude Code and exposes Symphony's
+`linear_graphql` tool to Claude through a bundled MCP adapter.
+
+Install the bridge dependency once in `elixir/`:
+
+```bash
+npm install
+```
+
+Then point `codex.command` at the bridge:
+
+```yaml
+codex:
+  command: "node ./scripts/claude_code_app_server.mjs"
+  approval_policy: never
+```
+
+Bridge notes:
+
+- Export `ANTHROPIC_API_KEY` before launching Symphony.
+- The bridge installs `@anthropic-ai/claude-agent-sdk`, the package Anthropic now publishes for the
+  Claude Code JavaScript SDK.
+- `codex.approval_policy: never` is the supported unattended default for Claude unless you provide
+  `SYMPHONY_CLAUDE_PERMISSION_MODE` explicitly.
+- `LINEAR_API_KEY` is reused by the bundled `linear_graphql` MCP adapter.
+- Set `SYMPHONY_CLAUDE_MODEL` to override the default Claude model selection.
+- Set `SYMPHONY_CLAUDE_SDK_QUERY_MODULE` to override the SDK module import used by the bridge.
+- Set `SYMPHONY_LINEAR_ENDPOINT` if your Linear GraphQL endpoint differs from
+  `https://api.linear.app/graphql`.
 
 - If `WORKFLOW.md` is missing or has invalid YAML, startup and scheduling are halted until fixed.
 - `server.port` or CLI `--port` enables the optional Phoenix LiveView dashboard and JSON API at
