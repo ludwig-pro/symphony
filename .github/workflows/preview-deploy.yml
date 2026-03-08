@@ -1,0 +1,351 @@
+name: preview-deploy
+
+on:
+  pull_request:
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - closed
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: Pull request number to annotate with the preview URL
+        required: true
+        type: string
+      git_ref:
+        description: Git ref to deploy, such as a branch name, commit SHA, or refs/pull/<n>/head
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+concurrency:
+  group: preview-${{ github.event.pull_request.number || inputs.pr_number }}
+  cancel-in-progress: true
+
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    env:
+      APP_PREFIX: ${{ vars.SYMPHONY_PREVIEW_APP_PREFIX }}
+      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+      FLY_ORG: ${{ vars.SYMPHONY_PREVIEW_FLY_ORG }}
+      FLY_REGION: ${{ vars.SYMPHONY_PREVIEW_FLY_REGION }}
+      PREVIEW_COMMENT_MARKER: "<!-- symphony-preview -->"
+
+    steps:
+      - name: Checkout workflow repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Derive preview metadata
+        id: meta
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            pr_number="${{ inputs.pr_number }}"
+            checkout_ref="${{ inputs.git_ref }}"
+            event_action="workflow_dispatch"
+            same_repo="true"
+          else
+            pr_number="${{ github.event.pull_request.number }}"
+            checkout_ref="${{ github.event.pull_request.head.sha }}"
+            event_action="${{ github.event.action }}"
+
+            if [[ "${{ github.event.pull_request.head.repo.full_name }}" == "${{ github.repository }}" ]]; then
+              same_repo="true"
+            else
+              same_repo="false"
+            fi
+          fi
+
+          repo_name="${GITHUB_REPOSITORY##*/}"
+          app_prefix="${APP_PREFIX:-$repo_name}"
+          app_name="$(.github/scripts/preview-fly-app-name.sh "$app_prefix" "$pr_number")"
+          preview_url="https://${app_name}.fly.dev"
+          state_api_url="${preview_url}/api/v1/state"
+
+          fly_configured="true"
+          if [[ -z "${FLY_API_TOKEN:-}" || -z "${FLY_ORG:-}" ]]; then
+            fly_configured="false"
+          fi
+
+          deploy_enabled="false"
+          cleanup_enabled="false"
+          comment_enabled="false"
+
+          if [[ "$same_repo" == "true" || "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            comment_enabled="true"
+          fi
+
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            if [[ "$fly_configured" == "true" ]]; then
+              deploy_enabled="true"
+            fi
+          elif [[ "$event_action" == "closed" ]]; then
+            if [[ "$same_repo" == "true" && "$fly_configured" == "true" ]]; then
+              cleanup_enabled="true"
+            fi
+          elif [[ "$same_repo" == "true" && "$fly_configured" == "true" ]]; then
+            deploy_enabled="true"
+          fi
+
+          {
+            echo "app_name=${app_name}"
+            echo "checkout_ref=${checkout_ref}"
+            echo "comment_enabled=${comment_enabled}"
+            echo "deploy_enabled=${deploy_enabled}"
+            echo "cleanup_enabled=${cleanup_enabled}"
+            echo "event_action=${event_action}"
+            echo "fly_configured=${fly_configured}"
+            echo "pr_number=${pr_number}"
+            echo "preview_url=${preview_url}"
+            echo "same_repo=${same_repo}"
+            echo "state_api_url=${state_api_url}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Summarize skipped automatic preview
+        if: steps.meta.outputs.deploy_enabled != 'true' && steps.meta.outputs.cleanup_enabled != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo "## Symphony preview"
+            if [[ "${{ github.event_name }}" == "pull_request" && "${{ github.event.pull_request.head.repo.full_name }}" != "${{ github.repository }}" ]]; then
+              echo "Automatic deployment is skipped for fork pull requests because this workflow runs on \`pull_request\` without repository secrets."
+              echo
+              echo "Use the documented workflow-dispatch fallback to deploy \`refs/pull/${{ github.event.pull_request.number }}/head\` from the base repository when a hosted preview is required."
+            elif [[ "${{ steps.meta.outputs.fly_configured }}" != "true" ]]; then
+              echo "Automatic deployment is skipped until \`FLY_API_TOKEN\` and \`SYMPHONY_PREVIEW_FLY_ORG\` are configured for the repository."
+            else
+              echo "No deployment work was required for this event."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Checkout preview ref
+        if: steps.meta.outputs.deploy_enabled == 'true'
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          ref: ${{ steps.meta.outputs.checkout_ref }}
+
+      - name: Publish skipped preview comment
+        if: steps.meta.outputs.comment_enabled == 'true' && steps.meta.outputs.deploy_enabled != 'true' && steps.meta.outputs.cleanup_enabled != 'true'
+        uses: actions/github-script@v7
+        env:
+          PR_NUMBER: ${{ steps.meta.outputs.pr_number }}
+          PREVIEW_COMMENT_BODY: |
+            <!-- symphony-preview -->
+            ## Symphony Preview
+
+            Automatic preview deployment did not run for this event.
+
+            - Fly configured: `${{ steps.meta.outputs.fly_configured }}`
+            - Same-repository PR: `${{ steps.meta.outputs.same_repo }}`
+
+            Manual fallback:
+            ```bash
+            gh workflow run preview-deploy.yml --ref main -f pr_number=${{ steps.meta.outputs.pr_number }} -f git_ref=refs/pull/${{ steps.meta.outputs.pr_number }}/head
+            ```
+        with:
+          script: |
+            const marker = process.env.PREVIEW_COMMENT_MARKER;
+            const body = process.env.PREVIEW_COMMENT_BODY;
+            const issue_number = Number(process.env.PR_NUMBER);
+            const {owner, repo} = context.repo;
+
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner,
+              repo,
+              issue_number,
+              per_page: 100,
+            });
+
+            const existing = comments.find((comment) => comment.body && comment.body.includes(marker));
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner,
+                repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number,
+                body,
+              });
+            }
+
+      - name: Set up Flyctl
+        if: steps.meta.outputs.deploy_enabled == 'true' || steps.meta.outputs.cleanup_enabled == 'true'
+        uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Render Fly config
+        if: steps.meta.outputs.deploy_enabled == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .fly
+          region="${FLY_REGION:-iad}"
+          .github/scripts/render-preview-fly-toml.sh "${{ steps.meta.outputs.app_name }}" "$region" > .fly/preview.toml
+          cat .fly/preview.toml
+
+      - name: Ensure Fly app exists
+        if: steps.meta.outputs.deploy_enabled == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! flyctl apps show "${{ steps.meta.outputs.app_name }}" >/dev/null 2>&1; then
+            flyctl apps create "${{ steps.meta.outputs.app_name }}" --machines --org "${FLY_ORG}"
+          fi
+
+      - name: Deploy preview app
+        if: steps.meta.outputs.deploy_enabled == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          flyctl deploy \
+            --app "${{ steps.meta.outputs.app_name }}" \
+            --config .fly/preview.toml \
+            --dockerfile Dockerfile.preview \
+            --ha=false \
+            --remote-only \
+            --strategy immediate
+
+      - name: Smoke check dashboard and state API
+        if: steps.meta.outputs.deploy_enabled == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          preview_url="${{ steps.meta.outputs.preview_url }}"
+          state_api_url="${{ steps.meta.outputs.state_api_url }}"
+
+          curl --fail --retry 15 --retry-all-errors --retry-delay 4 --silent --show-error \
+            "${preview_url}/" \
+            | grep -q "Operations Dashboard"
+
+          state_payload="$(curl --fail --retry 15 --retry-all-errors --retry-delay 4 --silent --show-error "$state_api_url")"
+          printf '%s\n' "$state_payload" | jq -e '.generated_at and .counts and .codex_totals' >/dev/null
+
+      - name: Publish preview comment
+        if: steps.meta.outputs.comment_enabled == 'true' && steps.meta.outputs.deploy_enabled == 'true'
+        uses: actions/github-script@v7
+        env:
+          PR_NUMBER: ${{ steps.meta.outputs.pr_number }}
+          PREVIEW_COMMENT_BODY: |
+            <!-- symphony-preview -->
+            ## Symphony Preview
+
+            - Dashboard: ${{ steps.meta.outputs.preview_url }}/
+            - State API: ${{ steps.meta.outputs.state_api_url }}
+            - Mode: preview-safe idle dashboard powered by `elixir/WORKFLOW.preview.md`
+
+            Validation checklist:
+            - [ ] Open the dashboard and confirm the page renders with the expected PR changes.
+            - [ ] Open the `State API` link and confirm the request returns HTTP 200 with JSON payload.
+            - [ ] Confirm the dashboard chrome and `/api/v1/state` both represent the same idle/runtime state.
+        with:
+          script: |
+            const marker = process.env.PREVIEW_COMMENT_MARKER;
+            const body = process.env.PREVIEW_COMMENT_BODY;
+            const issue_number = Number(process.env.PR_NUMBER);
+            const {owner, repo} = context.repo;
+
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner,
+              repo,
+              issue_number,
+              per_page: 100,
+            });
+
+            const existing = comments.find((comment) => comment.body && comment.body.includes(marker));
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner,
+                repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number,
+                body,
+              });
+            }
+
+      - name: Summarize deployment
+        if: steps.meta.outputs.deploy_enabled == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo "## Symphony preview"
+            echo "Preview URL: ${{ steps.meta.outputs.preview_url }}/"
+            echo "State API: ${{ steps.meta.outputs.state_api_url }}"
+            echo "Fly app: ${{ steps.meta.outputs.app_name }}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Destroy preview app
+        if: steps.meta.outputs.cleanup_enabled == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          if flyctl apps show "${{ steps.meta.outputs.app_name }}" >/dev/null 2>&1; then
+            flyctl apps destroy "${{ steps.meta.outputs.app_name }}" --yes
+          fi
+
+      - name: Publish cleanup comment
+        if: steps.meta.outputs.comment_enabled == 'true' && steps.meta.outputs.cleanup_enabled == 'true'
+        uses: actions/github-script@v7
+        env:
+          PR_NUMBER: ${{ steps.meta.outputs.pr_number }}
+          PREVIEW_COMMENT_BODY: |
+            <!-- symphony-preview -->
+            ## Symphony Preview
+
+            Preview infrastructure for this pull request has been removed because the pull request is closed.
+        with:
+          script: |
+            const marker = process.env.PREVIEW_COMMENT_MARKER;
+            const body = process.env.PREVIEW_COMMENT_BODY;
+            const issue_number = Number(process.env.PR_NUMBER);
+            const {owner, repo} = context.repo;
+
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner,
+              repo,
+              issue_number,
+              per_page: 100,
+            });
+
+            const existing = comments.find((comment) => comment.body && comment.body.includes(marker));
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner,
+                repo,
+                comment_id: existing.id,
+                body,
+              });
+            }
+            else {
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number,
+                body,
+              });
+            }

@@ -1,0 +1,35 @@
+FROM elixir:1.19.1-otp-28-slim AS build
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends build-essential git \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app/elixir
+
+ENV MIX_ENV=prod
+
+RUN mix local.hex --force && mix local.rebar --force
+
+COPY elixir/mix.exs elixir/mix.lock ./
+COPY elixir/config ./config
+RUN mix deps.get --only "${MIX_ENV}"
+
+COPY elixir/lib ./lib
+COPY elixir/priv ./priv
+COPY elixir/WORKFLOW.preview.md ./WORKFLOW.preview.md
+RUN mix build
+
+FROM elixir:1.19.1-otp-28-slim AS runtime
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app/elixir
+
+ENV MIX_ENV=prod
+ENV PORT=8080
+
+COPY --from=build /app/elixir /app/elixir
+
+CMD ["sh", "-c", "./bin/symphony --i-understand-that-this-will-be-running-without-the-usual-guardrails --port ${PORT:-8080} ./WORKFLOW.preview.md"]
