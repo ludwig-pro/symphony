@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 const defaultLinearEndpoint = "https://api.linear.app/graphql";
-const protocolVersion = "2024-11-05";
+const protocolVersion = "2025-11-25";
 const toolSpec = {
   description: "Execute a raw GraphQL query or mutation against Linear using Symphony's configured auth.",
   inputSchema: {
@@ -24,6 +24,7 @@ const toolSpec = {
 };
 
 let buffer = Buffer.alloc(0);
+let transportMode = null;
 
 process.stdin.on("data", (chunk) => {
   buffer = Buffer.concat([buffer, chunk]);
@@ -32,11 +33,35 @@ process.stdin.on("data", (chunk) => {
 
 async function parseMessages() {
   while (true) {
+    if (transportMode === "jsonl" || looksLikeJsonLine(buffer)) {
+      transportMode = "jsonl";
+
+      const line = extractJsonLine();
+
+      if (line === null) {
+        return;
+      }
+
+      let message;
+
+      try {
+        message = JSON.parse(line);
+      } catch (error) {
+        writeError(null, -32700, `Invalid JSON payload: ${error?.message || error}`);
+        continue;
+      }
+
+      await handleMessage(message);
+      continue;
+    }
+
     const separatorIndex = buffer.indexOf("\r\n\r\n");
 
     if (separatorIndex === -1) {
       return;
     }
+
+    transportMode = "framed";
 
     const headersText = buffer.subarray(0, separatorIndex).toString("utf8");
     const contentLength = parseContentLength(headersText);
@@ -67,6 +92,29 @@ async function parseMessages() {
 
     await handleMessage(message);
   }
+}
+
+function looksLikeJsonLine(currentBuffer) {
+  if (currentBuffer.length === 0) {
+    return false;
+  }
+
+  const preview = currentBuffer.toString("utf8", 0, Math.min(currentBuffer.length, 32)).trimStart();
+
+  return preview.startsWith("{");
+}
+
+function extractJsonLine() {
+  const newlineIndex = buffer.indexOf("\n");
+
+  if (newlineIndex === -1) {
+    return null;
+  }
+
+  const line = buffer.subarray(0, newlineIndex).toString("utf8").trim();
+  buffer = buffer.subarray(newlineIndex + 1);
+
+  return line === "" ? extractJsonLine() : line;
 }
 
 async function handleMessage(message) {
@@ -254,6 +302,12 @@ function writeError(id, code, message) {
 
 function writeMessage(payload) {
   const body = JSON.stringify(payload);
+
+  if (transportMode === "jsonl") {
+    process.stdout.write(`${body}\n`);
+    return;
+  }
+
   const header = `Content-Length: ${Buffer.byteLength(body, "utf8")}\r\n\r\n`;
   process.stdout.write(header);
   process.stdout.write(body);
