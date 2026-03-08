@@ -6,11 +6,17 @@ defmodule SymphonyElixirWeb.ObservabilityApiController do
   use Phoenix.Controller, formats: [:json]
 
   alias Plug.Conn
+  alias SymphonyElixir.AgentConfig
   alias SymphonyElixirWeb.{Endpoint, Presenter}
 
   @spec state(Conn.t(), map()) :: Conn.t()
   def state(conn, _params) do
     json(conn, Presenter.state_payload(orchestrator(), snapshot_timeout_ms()))
+  end
+
+  @spec agent(Conn.t(), map()) :: Conn.t()
+  def agent(conn, _params) do
+    json(conn, AgentConfig.current())
   end
 
   @spec issue(Conn.t(), map()) :: Conn.t()
@@ -22,6 +28,24 @@ defmodule SymphonyElixirWeb.ObservabilityApiController do
       {:error, :issue_not_found} ->
         error_response(conn, 404, "issue_not_found", "Issue not found")
     end
+  end
+
+  @spec update_agent(Conn.t(), map()) :: Conn.t()
+  def update_agent(conn, %{"preset_id" => preset_id}) do
+    case AgentConfig.set_preset(preset_id) do
+      {:ok, payload} ->
+        json(conn, payload)
+
+      {:error, :unsupported_preset} ->
+        error_response(conn, 400, "unsupported_agent_preset", "Unsupported agent preset")
+
+      {:error, {:preset_unavailable, reason}} ->
+        error_response(conn, 422, "agent_preset_unavailable", reason)
+    end
+  end
+
+  def update_agent(conn, _params) do
+    error_response(conn, 400, "invalid_request", "Expected `preset_id`.")
   end
 
   @spec refresh(Conn.t(), map()) :: Conn.t()

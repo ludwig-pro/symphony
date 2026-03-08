@@ -101,6 +101,12 @@ defmodule SymphonyElixir.ExtensionsTest do
     :ok
   end
 
+  setup do
+    Application.put_env(:symphony_elixir, :claude_bridge_probe, &ready_claude_probe/0)
+    Application.delete_env(:symphony_elixir, :claude_bridge_availability_cache)
+    :ok
+  end
+
   test "workflow store reloads changes, keeps last good workflow, and falls back when stopped" do
     ensure_workflow_store_running()
     assert {:ok, %{prompt: "You are an agent for this repository."}} = Workflow.current()
@@ -340,40 +346,43 @@ defmodule SymphonyElixir.ExtensionsTest do
     conn = get(build_conn(), "/api/v1/state")
     state_payload = json_response(conn, 200)
 
-    assert state_payload == %{
-             "generated_at" => state_payload["generated_at"],
-             "counts" => %{"running" => 1, "retrying" => 1},
-             "running" => [
-               %{
-                 "issue_id" => "issue-http",
-                 "issue_identifier" => "MT-HTTP",
-                 "state" => "In Progress",
-                 "session_id" => "thread-http",
-                 "turn_count" => 7,
-                 "last_event" => "notification",
-                 "last_message" => "rendered",
-                 "started_at" => state_payload["running"] |> List.first() |> Map.fetch!("started_at"),
-                 "last_event_at" => nil,
-                 "tokens" => %{"input_tokens" => 4, "output_tokens" => 8, "total_tokens" => 12}
-               }
-             ],
-             "retrying" => [
-               %{
-                 "issue_id" => "issue-retry",
-                 "issue_identifier" => "MT-RETRY",
-                 "attempt" => 2,
-                 "due_at" => state_payload["retrying"] |> List.first() |> Map.fetch!("due_at"),
-                 "error" => "boom"
-               }
-             ],
-             "codex_totals" => %{
-               "input_tokens" => 4,
-               "output_tokens" => 8,
-               "total_tokens" => 12,
-               "seconds_running" => 42.5
-             },
-             "rate_limits" => %{"primary" => %{"remaining" => 11}}
+    assert state_payload["generated_at"]
+    assert state_payload["counts"] == %{"running" => 1, "retrying" => 1}
+
+    assert state_payload["running"] == [
+             %{
+               "issue_id" => "issue-http",
+               "issue_identifier" => "MT-HTTP",
+               "state" => "In Progress",
+               "session_id" => "thread-http",
+               "turn_count" => 7,
+               "last_event" => "notification",
+               "last_message" => "rendered",
+               "started_at" => state_payload["running"] |> List.first() |> Map.fetch!("started_at"),
+               "last_event_at" => nil,
+               "tokens" => %{"input_tokens" => 4, "output_tokens" => 8, "total_tokens" => 12}
+             }
+           ]
+
+    assert state_payload["retrying"] == [
+             %{
+               "issue_id" => "issue-retry",
+               "issue_identifier" => "MT-RETRY",
+               "attempt" => 2,
+               "due_at" => state_payload["retrying"] |> List.first() |> Map.fetch!("due_at"),
+               "error" => "boom"
+             }
+           ]
+
+    assert state_payload["codex_totals"] == %{
+             "input_tokens" => 4,
+             "output_tokens" => 8,
+             "total_tokens" => 12,
+             "seconds_running" => 42.5
            }
+
+    assert state_payload["rate_limits"] == %{"primary" => %{"remaining" => 11}}
+    assert_agent_payload(state_payload["agent"], "workflow-default")
 
     conn = get(build_conn(), "/api/v1/MT-HTTP")
     issue_payload = json_response(conn, 200)
@@ -418,6 +427,31 @@ defmodule SymphonyElixir.ExtensionsTest do
              json_response(conn, 202)
   end
 
+  test "phoenix observability api exposes and updates the active agent preset" do
+    start_test_endpoint(orchestrator: Module.concat(__MODULE__, :AgentConfigOrchestrator), snapshot_timeout_ms: 5)
+
+    agent_payload = json_response(get(build_conn(), "/api/v1/config/agent"), 200)
+    assert_agent_payload(agent_payload, "workflow-default")
+
+    updated_payload =
+      json_response(post(build_conn(), "/api/v1/config/agent", %{"preset_id" => "claude-sonnet"}), 200)
+
+    assert updated_payload["current"]["id"] == "claude-sonnet"
+    assert updated_payload["current"]["provider"] == "claude_code"
+    assert updated_payload["current"]["model"] == "claude-sonnet-4-6"
+    assert updated_payload["override"] == %{"active" => true, "preset_id" => "claude-sonnet"}
+    assert updated_payload["claude_bridge"]["available"] == true
+    assert Config.codex_command() == "SYMPHONY_CLAUDE_MODEL=claude-sonnet-4-6 node ./scripts/claude_code_cli_bridge.mjs"
+
+    assert json_response(post(build_conn(), "/api/v1/config/agent", %{"preset_id" => "missing"}), 400) ==
+             %{
+               "error" => %{
+                 "code" => "unsupported_agent_preset",
+                 "message" => "Unsupported agent preset"
+               }
+             }
+  end
+
   test "phoenix observability api preserves 405, 404, and unavailable behavior" do
     unavailable_orchestrator = Module.concat(__MODULE__, :UnavailableOrchestrator)
     start_test_endpoint(orchestrator: unavailable_orchestrator, snapshot_timeout_ms: 5)
@@ -426,6 +460,9 @@ defmodule SymphonyElixir.ExtensionsTest do
              %{"error" => %{"code" => "method_not_allowed", "message" => "Method not allowed"}}
 
     assert json_response(get(build_conn(), "/api/v1/refresh"), 405) ==
+             %{"error" => %{"code" => "method_not_allowed", "message" => "Method not allowed"}}
+
+    assert json_response(put(build_conn(), "/api/v1/config/agent", %{}), 405) ==
              %{"error" => %{"code" => "method_not_allowed", "message" => "Method not allowed"}}
 
     assert json_response(post(build_conn(), "/", %{}), 405) ==
@@ -439,11 +476,9 @@ defmodule SymphonyElixir.ExtensionsTest do
 
     state_payload = json_response(get(build_conn(), "/api/v1/state"), 200)
 
-    assert state_payload ==
-             %{
-               "generated_at" => state_payload["generated_at"],
-               "error" => %{"code" => "snapshot_unavailable", "message" => "Snapshot unavailable"}
-             }
+    assert state_payload["generated_at"]
+    assert state_payload["error"] == %{"code" => "snapshot_unavailable", "message" => "Snapshot unavailable"}
+    assert_agent_payload(state_payload["agent"], "workflow-default")
 
     assert json_response(post(build_conn(), "/api/v1/refresh", %{}), 503) ==
              %{
@@ -461,11 +496,9 @@ defmodule SymphonyElixir.ExtensionsTest do
 
     timeout_payload = json_response(get(build_conn(), "/api/v1/state"), 200)
 
-    assert timeout_payload ==
-             %{
-               "generated_at" => timeout_payload["generated_at"],
-               "error" => %{"code" => "snapshot_timeout", "message" => "Snapshot timed out"}
-             }
+    assert timeout_payload["generated_at"]
+    assert timeout_payload["error"] == %{"code" => "snapshot_timeout", "message" => "Snapshot timed out"}
+    assert_agent_payload(timeout_payload["agent"], "workflow-default")
   end
 
   test "dashboard bootstraps liveview from embedded static assets" do
@@ -500,6 +533,9 @@ defmodule SymphonyElixir.ExtensionsTest do
     assert dashboard_css =~ ".status-badge-live"
     assert dashboard_css =~ "[data-phx-main].phx-connected .status-badge-live"
     assert dashboard_css =~ "[data-phx-main].phx-connected .status-badge-offline"
+    assert dashboard_css =~ ".agent-panel"
+    assert dashboard_css =~ ".agent-select"
+    assert dashboard_css =~ ".flash-toast"
 
     phoenix_html_js = response(get(build_conn(), "/vendor/phoenix_html/phoenix_html.js"), 200)
     assert phoenix_html_js =~ "phoenix.link.click"
@@ -536,6 +572,10 @@ defmodule SymphonyElixir.ExtensionsTest do
     assert html =~ "MT-HTTP"
     assert html =~ "MT-RETRY"
     assert html =~ "rendered"
+    assert html =~ "Active agent"
+    assert html =~ "Workflow default - Codex"
+    assert html =~ "Claude bridge ready"
+    assert html =~ "Agent API"
     assert html =~ "Runtime"
     assert html =~ "State API"
     assert html =~ "Runtime notes"
@@ -549,6 +589,15 @@ defmodule SymphonyElixir.ExtensionsTest do
     refute html =~ "Transport"
     assert html =~ "status-badge-live"
     assert html =~ "status-badge-offline"
+
+    switch_html =
+      view
+      |> element("form.agent-switcher")
+      |> render_change(%{"agent" => %{"preset_id" => "claude-sonnet"}})
+
+    assert switch_html =~ "Switched to Claude Code - next agents will use claude-sonnet-4-6."
+    assert switch_html =~ "Claude Code - claude-sonnet-4-6"
+    assert Config.codex_command() == "SYMPHONY_CLAUDE_MODEL=claude-sonnet-4-6 node ./scripts/claude_code_cli_bridge.mjs"
 
     updated_snapshot =
       put_in(snapshot.running, [
@@ -717,6 +766,37 @@ defmodule SymphonyElixir.ExtensionsTest do
     end)
 
     HttpServer.bound_port()
+  end
+
+  defp ready_claude_probe do
+    %{
+      available: true,
+      authenticated: true,
+      code: "ready",
+      installed: true,
+      node_available: true,
+      reason: nil
+    }
+  end
+
+  defp assert_agent_payload(agent_payload, current_id) do
+    assert agent_payload["current"]["id"] == current_id
+    assert agent_payload["current"]["provider"] in ["codex", "claude_code"]
+    assert agent_payload["current"]["source"] in ["workflow", "runtime_override"]
+    assert agent_payload["current"]["selected"] == true
+    assert agent_payload["claude_bridge"]["available"] == true
+
+    assert Enum.any?(agent_payload["presets"], fn preset ->
+             preset["id"] == "workflow-default" and preset["provider"] == "codex"
+           end)
+
+    assert Enum.any?(agent_payload["presets"], fn preset ->
+             preset["id"] == "claude-sonnet" and preset["available"] == true
+           end)
+
+    assert Enum.any?(agent_payload["presets"], fn preset ->
+             preset["id"] == "claude-opus" and preset["available"] == true
+           end)
   end
 
   defp assert_eventually(fun, attempts \\ 20)
