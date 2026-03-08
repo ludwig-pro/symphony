@@ -41,6 +41,10 @@ defmodule SymphonyElixir.TestSupport do
         on_exit(fn ->
           Application.delete_env(:symphony_elixir, :workflow_file_path)
           Application.delete_env(:symphony_elixir, :server_port_override)
+          Application.delete_env(:symphony_elixir, :agent_preset_override)
+          Application.delete_env(:symphony_elixir, :codex_command_override)
+          Application.delete_env(:symphony_elixir, :claude_bridge_availability_cache)
+          Application.delete_env(:symphony_elixir, :claude_bridge_probe)
           Application.delete_env(:symphony_elixir, :memory_tracker_issues)
           Application.delete_env(:symphony_elixir, :memory_tracker_recipient)
           File.rm_rf(workflow_root)

@@ -5,6 +5,7 @@ defmodule SymphonyElixirWeb.DashboardLive do
 
   use Phoenix.LiveView, layout: {SymphonyElixirWeb.Layouts, :app}
 
+  alias SymphonyElixir.AgentConfig
   alias SymphonyElixirWeb.{Endpoint, ObservabilityPubSub, Presenter}
   @runtime_tick_ms 1_000
 
@@ -38,9 +39,38 @@ defmodule SymphonyElixirWeb.DashboardLive do
   end
 
   @impl true
+  def handle_event("switch_agent", %{"agent" => %{"preset_id" => preset_id}}, socket) do
+    case AgentConfig.set_preset(preset_id) do
+      {:ok, payload} ->
+        {:noreply,
+         socket
+         |> assign(:payload, load_payload())
+         |> assign(:now, DateTime.utc_now())
+         |> put_flash(:info, switch_success_message(payload.current))}
+
+      {:error, {:preset_unavailable, reason}} ->
+        {:noreply, put_flash(socket, :error, reason)}
+
+      {:error, :unsupported_preset} ->
+        {:noreply, put_flash(socket, :error, "Unsupported agent preset.")}
+    end
+  end
+
+  def handle_event("switch_agent", _params, socket) do
+    {:noreply, put_flash(socket, :error, "Expected an agent preset selection.")}
+  end
+
+  @impl true
   def render(assigns) do
     ~H"""
     <section class="dashboard-shell">
+      <div :if={map_size(@flash) > 0} class="flash-stack">
+        <article :for={{kind, message} <- @flash} class={flash_toast_class(kind)} role="status">
+          <p class="flash-toast-label"><%= flash_label(kind) %></p>
+          <p class="flash-toast-copy"><%= message %></p>
+        </article>
+      </div>
+
       <header class="hero-card">
         <div class="hero-layout">
           <div class="hero-copy-block">
@@ -81,6 +111,7 @@ defmodule SymphonyElixirWeb.DashboardLive do
 
             <div class="hero-actions">
               <a class="action-chip" href="/api/v1/state">State API</a>
+              <a class="action-chip action-chip-muted" href="/api/v1/config/agent">Agent API</a>
               <a
                 :if={primary_running_issue_identifier(@payload[:running] || [])}
                 class="action-chip action-chip-muted"
@@ -88,6 +119,53 @@ defmodule SymphonyElixirWeb.DashboardLive do
               >
                 Focus issue JSON
               </a>
+            </div>
+
+            <div class="agent-panel">
+              <div class="agent-panel-header">
+                <div>
+                  <p class="hero-meta-label">Active agent</p>
+                  <p class="agent-panel-value"><%= @payload.agent.current.label %></p>
+                </div>
+
+                <span class={agent_provider_badge_class(@payload.agent.current.provider)}>
+                  <%= @payload.agent.current.provider_label %>
+                </span>
+              </div>
+
+              <p class="agent-panel-copy">
+                <%= active_agent_copy(@payload.agent.current) %>
+              </p>
+
+              <form class="agent-switcher" phx-change="switch_agent">
+                <label class="agent-switcher-label" for="agent-preset">Next agents</label>
+
+                <div class="agent-switcher-row">
+                  <select
+                    id="agent-preset"
+                    name="agent[preset_id]"
+                    class="agent-select"
+                    aria-label="Select agent preset"
+                  >
+                    <option
+                      :for={preset <- agent_presets(@payload)}
+                      value={preset.id}
+                      selected={preset.selected}
+                      disabled={not preset.available}
+                    >
+                      <%= agent_option_label(preset) %>
+                    </option>
+                  </select>
+
+                  <span class={claude_bridge_badge_class(@payload.agent.claude_bridge)}>
+                    <%= claude_bridge_badge_label(@payload.agent.claude_bridge) %>
+                  </span>
+                </div>
+              </form>
+
+              <p class="agent-switcher-hint">
+                <%= claude_bridge_copy(@payload.agent.claude_bridge) %>
+              </p>
             </div>
 
             <p class="hero-side-copy">
@@ -338,6 +416,58 @@ defmodule SymphonyElixirWeb.DashboardLive do
 
   defp load_payload do
     Presenter.state_payload(orchestrator(), snapshot_timeout_ms())
+  end
+
+  defp flash_toast_class(kind) do
+    base = "flash-toast"
+
+    case kind do
+      :error -> "#{base} flash-toast-error"
+      _ -> "#{base} flash-toast-info"
+    end
+  end
+
+  defp flash_label(:error), do: "Switch failed"
+  defp flash_label(_kind), do: "Agent updated"
+
+  defp active_agent_copy(agent) do
+    "#{agent.source_label}. Changes only apply to agents launched after this switch."
+  end
+
+  defp agent_presets(%{agent: %{presets: presets}}) when is_list(presets), do: presets
+  defp agent_presets(_payload), do: []
+
+  defp agent_option_label(preset) do
+    base = "#{preset.provider_label} - #{preset.model_label}"
+
+    if preset.available do
+      base
+    else
+      "#{base} (unavailable)"
+    end
+  end
+
+  defp agent_provider_badge_class("claude_code"), do: "provider-badge provider-badge-claude"
+  defp agent_provider_badge_class(_provider), do: "provider-badge provider-badge-codex"
+
+  defp claude_bridge_badge_class(%{available: true}),
+    do: "availability-badge availability-badge-ready"
+
+  defp claude_bridge_badge_class(_status),
+    do: "availability-badge availability-badge-blocked"
+
+  defp claude_bridge_badge_label(%{available: true}), do: "Claude bridge ready"
+  defp claude_bridge_badge_label(_status), do: "Claude bridge blocked"
+
+  defp claude_bridge_copy(%{available: true}) do
+    "Claude Code is installed and authenticated. Disabled presets stay off until their runtime requirements are satisfied."
+  end
+
+  defp claude_bridge_copy(%{reason: reason}) when is_binary(reason), do: reason
+  defp claude_bridge_copy(_status), do: "Claude bridge status unavailable."
+
+  defp switch_success_message(current) do
+    "Switched to #{current.provider_label} - next agents will use #{current.model_label}."
   end
 
   defp orchestrator do
