@@ -495,6 +495,8 @@ defmodule SymphonyElixir.ExtensionsTest do
 
     dashboard_css = response(get(build_conn(), "/dashboard.css"), 200)
     assert dashboard_css =~ ":root {"
+    assert dashboard_css =~ ".hero-layout"
+    assert dashboard_css =~ ".rate-card"
     assert dashboard_css =~ ".status-badge-live"
     assert dashboard_css =~ "[data-phx-main].phx-connected .status-badge-live"
     assert dashboard_css =~ "[data-phx-main].phx-connected .status-badge-offline"
@@ -535,6 +537,8 @@ defmodule SymphonyElixir.ExtensionsTest do
     assert html =~ "MT-RETRY"
     assert html =~ "rendered"
     assert html =~ "Runtime"
+    assert html =~ "State API"
+    assert html =~ "Runtime notes"
     assert html =~ "Live"
     assert html =~ "Offline"
     assert html =~ "Copy ID"
