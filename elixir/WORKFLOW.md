@@ -7,6 +7,7 @@ tracker:
     - In Progress
     - Merging
     - Rework
+    - AI Review
   terminal_states:
     - Closed
     - Cancelled
@@ -28,6 +29,8 @@ hooks:
 agent:
   max_concurrent_agents: 10
   max_turns: 20
+  max_concurrent_agents_by_state:
+    AI Review: 5
 codex:
   command: codex --config shell_environment_policy.inherit=all --config model_reasoning_effort=xhigh --model gpt-5.3-codex app-server
   approval_policy: never
@@ -105,9 +108,10 @@ The agent should be able to talk to Linear, either via a configured Linear MCP s
 
 - `Backlog` -> out of scope for this workflow; do not modify.
 - `Todo` -> queued; immediately transition to `In Progress` before active work.
-  - Special case: if a PR is already attached, treat as feedback/rework loop (run full PR feedback sweep, address or explicitly push back, revalidate, return to `Human Review`).
-- `In Progress` -> implementation actively underway.
-- `Human Review` -> PR is attached and validated; waiting on human approval.
+  - Special case: if a PR is already attached, treat as feedback/rework loop (run full PR feedback sweep, address or explicitly push back, revalidate, return to `AI Review`).
+- `In Progress` -> implementation actively underway; when the implementation is complete and validated, hand off to `AI Review`.
+- `AI Review` -> PR is attached; automated code review in progress.
+- `Human Review` -> PR has passed AI review and is waiting on human approval.
 - `Merging` -> approved by human; execute the `land` skill flow (do not call `gh pr merge` directly).
 - `Rework` -> reviewer requested changes; planning + implementation required.
 - `Done` -> terminal state; no further action required.
@@ -121,6 +125,7 @@ The agent should be able to talk to Linear, either via a configured Linear MCP s
    - `Todo` -> immediately move to `In Progress`, then ensure bootstrap workpad comment exists (create if missing), then start execution flow.
      - If PR is already attached, start by reviewing all open PR comments and deciding required changes vs explicit pushback responses.
    - `In Progress` -> continue execution flow from current scratchpad comment.
+   - `AI Review` -> perform automated code review on the attached PR.
    - `Human Review` -> wait and poll for decision/review updates.
    - `Merging` -> on entry, open and follow `.codex/skills/land/SKILL.md`; do not call `gh pr merge` directly.
    - `Rework` -> run rework flow.
@@ -147,6 +152,7 @@ The agent should be able to talk to Linear, either via a configured Linear MCP s
     - Check off items that are already done.
     - Expand/fix the plan so it is comprehensive for current scope.
     - Ensure `Acceptance Criteria` and `Validation` are current and still make sense for the task.
+    - If arriving from `AI Review` and a PR already exists, identify existing `## Symphony AI Review` reviews/comments and move those resolution items to the top of the plan before any new implementation.
 4.  Start work by writing/updating a hierarchical plan in the workpad comment.
 5.  Ensure the workpad includes a compact environment stamp at the top as a code fence line:
     - Format: `<host>:<abs-workdir>@<short-sha>`
@@ -167,7 +173,7 @@ The agent should be able to talk to Linear, either via a configured Linear MCP s
 
 ## PR feedback sweep protocol (required)
 
-When a ticket has an attached PR, run this protocol before moving to `Human Review`:
+When a ticket has an attached PR, run this protocol before moving to `AI Review`:
 
 1. Identify the PR number from issue links/attachments.
 2. Gather feedback from all channels:
@@ -193,7 +199,7 @@ Use this only when completion is blocked by missing required tools or missing au
   - exact human action needed to unblock.
 - Keep the brief concise and action-oriented; do not add extra top-level comments outside the workpad.
 
-## Step 2: Execution phase (Todo -> In Progress -> Human Review)
+## Step 2: Execution phase (Todo -> In Progress -> AI Review)
 
 1.  Determine current repo state (`branch`, `git status`, `HEAD`) and verify the kickoff `pull` sync result is already recorded in the workpad before implementation continues.
 2.  If current issue state is `Todo`, move it to `In Progress`; otherwise leave the current state unchanged.
@@ -206,6 +212,7 @@ Use this only when completion is blocked by missing required tools or missing au
     - Update the workpad immediately after each meaningful milestone (for example: reproduction complete, code change landed, validation run, review feedback addressed).
     - Never leave completed work unchecked in the plan.
     - For tickets that started as `Todo` with an attached PR, run the full PR feedback sweep protocol immediately after kickoff and before new feature work.
+    - If arriving from `AI Review`, run the full PR feedback sweep protocol immediately and prioritize resolving or explicitly pushing back on existing `## Symphony AI Review` comments before any new feature work.
 5.  Run validation/tests required for the scope.
     - Mandatory gate: execute all ticket-provided `Validation`/`Test Plan`/ `Testing` requirements when present; treat unmet items as incomplete work.
     - Prefer a targeted proof that directly demonstrates the behavior you changed.
@@ -224,21 +231,95 @@ Use this only when completion is blocked by missing required tools or missing au
     - Do not include PR URL in the workpad comment; keep PR linkage on the issue via attachment/link fields.
     - Add a short `### Confusions` section at the bottom when any part of task execution was unclear/confusing, with concise bullets.
     - Do not post any additional completion summary comment.
-11. Before moving to `Human Review`, poll PR feedback and checks:
+11. Before moving to `AI Review`, poll PR feedback and checks:
     - Read the PR `Manual QA Plan` comment (when present) and use it to sharpen UI/runtime test coverage for the current change.
     - Run the full PR feedback sweep protocol.
     - Confirm PR checks are passing (green) after the latest changes.
     - Confirm every required ticket-provided validation/test-plan item is explicitly marked complete in the workpad.
     - Repeat this check-address-verify loop until no outstanding comments remain and checks are fully passing.
     - Re-open and refresh the workpad before state transition so `Plan`, `Acceptance Criteria`, and `Validation` exactly match completed work.
-12. Only then move issue to `Human Review`.
+12. Only then move issue to `AI Review`.
     - Exception: if blocked by missing required non-GitHub tools/auth per the blocked-access escape hatch, move to `Human Review` with the blocker brief and explicit unblock actions.
 13. For `Todo` tickets that already had a PR attached at kickoff:
     - Ensure all existing PR feedback was reviewed and resolved, including inline review comments (code changes or explicit, justified pushback response).
     - Ensure branch was pushed with any required updates.
-    - Then move to `Human Review`.
+    - Then move to `AI Review`.
 
-## Step 3: Human Review and merge handling
+## Step 3: AI Review (automated code review)
+
+1. When the issue is in `AI Review`, perform a one-shot automated review of the attached PR. Do not implement new code in this step unless you first move the ticket back to `In Progress`.
+2. Identify the PR:
+   - Check issue attachments/links for a GitHub PR URL.
+   - Fallback: `gh pr list --head <branch> --json number,url --repo <owner>/<repo>`.
+   - If no PR is found, add a concise workpad note, move the issue to `In Progress`, and end the turn.
+3. Check cycle count (max 5):
+   - Count existing PR reviews/comments whose body includes `## Symphony AI Review`.
+   - If the count is `>= 5`, add a short workpad note that the max AI review cycle limit was reached, move the issue to `Human Review`, and end the turn.
+4. Gather review context:
+   - Re-read the full ticket description from Linear (`{{ issue.description }}`) and the current workpad acceptance criteria/validation notes.
+   - Fetch PR info: `gh pr view <pr_number> --json title,body,files,reviews,headRefOid`.
+   - Fetch the PR diff: `gh pr diff <pr_number>`.
+   - For large diffs, start with `gh pr diff <pr_number> --name-only` and then selectively read the most relevant files.
+5. Review the implementation against these dimensions:
+   - Correctness: does the code satisfy the ticket requirements and handle obvious edge cases?
+   - Architecture & Patterns: does it follow existing patterns and keep the structure clean?
+   - Testing: are the tests adequate and do they cover the acceptance criteria?
+   - Security: any OWASP-style concerns, auth gaps, or input validation issues?
+   - Performance: any avoidable blocking work, unnecessary allocations, or query inefficiencies?
+   - Ticket Alignment: does the implementation match the ticket description and acceptance criteria?
+6. Post the review:
+   - Use this exact review body format:
+
+     ````md
+     ## Symphony AI Review
+
+     **Ticket**: {identifier} — {title}
+
+     ### Summary
+
+     <1-2 sentence overall assessment>
+
+     ### Findings
+
+     #### Correctness
+
+     <findings or "No issues found">
+
+     #### Architecture & Patterns
+
+     <findings or "No issues found">
+
+     #### Testing
+
+     <findings or "No issues found">
+
+     #### Security
+
+     <findings or "No issues found">
+
+     #### Performance
+
+     <findings or "No issues found">
+
+     ### Ticket Alignment
+
+     - [x] <criterion that passes>
+     - [ ] <criterion that fails>
+
+     ### Verdict
+
+     APPROVE / REQUEST_CHANGES — <explanation>
+     ````
+
+   - Use `[x]` for a passed ticket-alignment item and `[ ]` for a failed item.
+   - If issues are found, post inline comments on the relevant lines via `gh api repos/{owner}/{repo}/pulls/{pr_number}/comments --method POST -f body="Issue description" -f commit_id="<headRefOid>" -f path="src/file.ex" -F line=42 -f side="RIGHT"`, then submit the summary verdict with `gh pr review <pr_number> --request-changes --body "<review summary>"`
+   - If the PR is clean, approve it with `gh pr review <pr_number> --approve --body "<review summary>"`
+7. Route based on outcome:
+   - Issues found -> move the issue to `In Progress` so the implementation agent can address the feedback on the next dispatch.
+   - No blocking issues -> move the issue to `Human Review`.
+8. Exit after posting the review and moving state. Do not loop inside the same turn.
+
+## Step 4: Human Review and merge handling
 
 1. When the issue is in `Human Review`, do not code or change ticket content.
 2. Poll for updates as needed, including GitHub PR review comments from humans and bots.
@@ -247,7 +328,7 @@ Use this only when completion is blocked by missing required tools or missing au
 5. When the issue is in `Merging`, open and follow `.codex/skills/land/SKILL.md`, then run the `land` skill in a loop until the PR is merged. Do not call `gh pr merge` directly.
 6. After merge is complete, move the issue to `Done`.
 
-## Step 4: Rework handling
+## Step 5: Rework handling
 
 1. Treat `Rework` as a full approach reset, not incremental patching.
 2. Re-read the full issue body and all human comments; explicitly identify what will be done differently this attempt.
@@ -259,7 +340,7 @@ Use this only when completion is blocked by missing required tools or missing au
    - Create a new bootstrap `## Codex Workpad` comment.
    - Build a fresh plan/checklist and execute end-to-end.
 
-## Completion bar before Human Review
+## Completion bar before AI Review
 
 - Step 1/2 checklist is fully complete and accurately reflected in the single workpad comment.
 - Acceptance criteria and required ticket-provided validation items are complete.
@@ -283,7 +364,7 @@ Use this only when completion is blocked by missing required tools or missing au
   title/description/acceptance criteria, same-project assignment, a `related`
   link to the current issue, and `blockedBy` when the follow-up depends on the
   current issue.
-- Do not move to `Human Review` unless the `Completion bar before Human Review` is satisfied.
+- Do not move to `AI Review` unless the `Completion bar before AI Review` is satisfied.
 - In `Human Review`, do not make changes; wait and poll.
 - If state is terminal (`Done`), do nothing and shut down.
 - Keep issue text concise, specific, and reviewer-oriented.
