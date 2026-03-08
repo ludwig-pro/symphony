@@ -147,36 +147,44 @@ codex:
 
 ### Using Claude Code
 
-Symphony now includes a checked-in Claude Code bridge at `scripts/claude_code_app_server.mjs`.
-The bridge runs Anthropic's current Claude Agent SDK for Claude Code and exposes Symphony's
-`linear_graphql` tool to Claude through a bundled MCP adapter.
+Symphony includes an OAuth-compatible Claude Code CLI bridge at
+`scripts/claude_code_cli_bridge.mjs`. The bridge launches `claude -p` directly, streams Claude's
+`stream-json` output back into Symphony's JSON-RPC event model, resumes follow-up turns with
+`--resume`, and forwards Symphony's `linear_graphql` tool through a bundled MCP config.
 
-Install the bridge dependency once in `elixir/`:
+Authenticate Claude Code once before launching Symphony:
 
 ```bash
-npm install
+claude /login
 ```
 
-Then point `codex.command` at the bridge:
+Then point `codex.command` at the CLI bridge:
 
 ```yaml
 codex:
-  command: "node ./scripts/claude_code_app_server.mjs"
+  command: "node ./scripts/claude_code_cli_bridge.mjs"
   approval_policy: never
 ```
 
 Bridge notes:
 
-- Export `ANTHROPIC_API_KEY` before launching Symphony.
-- The bridge installs `@anthropic-ai/claude-agent-sdk`, the package Anthropic now publishes for the
-  Claude Code JavaScript SDK.
-- `codex.approval_policy: never` is the supported unattended default for Claude unless you provide
-  `SYMPHONY_CLAUDE_PERMISSION_MODE` explicitly.
+- `ANTHROPIC_API_KEY` is not required when you use the CLI bridge with a logged-in Claude Pro or
+  Claude Max account.
+- Install the Claude Code CLI separately and make sure `claude` is on `PATH`.
+- The bridge runs Claude in the current issue workspace, requests `stream-json` output, and
+  forwards assistant text deltas and token usage into Symphony's dashboard events.
 - `LINEAR_API_KEY` is reused by the bundled `linear_graphql` MCP adapter.
-- Set `SYMPHONY_CLAUDE_MODEL` to override the default Claude model selection.
-- Set `SYMPHONY_CLAUDE_SDK_QUERY_MODULE` to override the SDK module import used by the bridge.
+- Set `SYMPHONY_CLAUDE_MODEL` to pass `--model` to Claude.
+- Set `SYMPHONY_CLAUDE_ALLOWED_TOOLS` to override the default
+  `Bash,Read,Edit,Write,Glob,Grep` allowlist. When `linear_graphql` is enabled, the bridge also
+  includes its MCP tool name automatically.
+- Set `SYMPHONY_CLAUDE_PERMISSION_MODE` to override the CLI `--permission-mode`. Otherwise,
+  `codex.approval_policy: never` maps to `bypassPermissions`.
 - Set `SYMPHONY_LINEAR_ENDPOINT` if your Linear GraphQL endpoint differs from
   `https://api.linear.app/graphql`.
+
+If you still need the legacy SDK-based bridge that imports `@anthropic-ai/claude-agent-sdk` and
+expects `ANTHROPIC_API_KEY`, it remains available at `scripts/claude_code_app_server.mjs`.
 
 - If `WORKFLOW.md` is missing or has invalid YAML, startup and scheduling are halted until fixed.
 - `server.port` or CLI `--port` enables the optional Phoenix LiveView dashboard and JSON API at

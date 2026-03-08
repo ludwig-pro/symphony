@@ -6,7 +6,8 @@
     "node": ">=18"
   },
   "scripts": {
-    "claude-app-server": "node ./scripts/claude_code_app_server.mjs"
+    "claude-app-server": "node ./scripts/claude_code_app_server.mjs",
+    "claude-cli-bridge": "node ./scripts/claude_code_cli_bridge.mjs"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.2.71"
