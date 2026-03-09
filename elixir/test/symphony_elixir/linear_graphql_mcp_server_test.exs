@@ -1,6 +1,12 @@
 defmodule SymphonyElixir.LinearGraphqlMcpServerTest do
   use SymphonyElixir.TestSupport
 
+  # GitHub Actions can take longer than 1s to schedule the Node child process while
+  # the coverage job is compiling the full suite. The protocol exchange is still tiny,
+  # so a slightly larger timeout avoids testing scheduler jitter instead of behavior.
+  @port_response_timeout 5_000
+  @port_exit_timeout 1_000
+
   test "linear_graphql MCP server accepts Claude CLI jsonl transport and lists tools" do
     node_binary = System.find_executable("node")
 
@@ -38,7 +44,7 @@ defmodule SymphonyElixir.LinearGraphqlMcpServerTest do
           }) <> "\n"
         )
 
-        assert_receive {^port, {:data, {:eol, initialize_response}}}, 1_000
+        initialize_response = receive_port_line!(port)
 
         assert %{
                  "id" => 1,
@@ -68,7 +74,7 @@ defmodule SymphonyElixir.LinearGraphqlMcpServerTest do
           }) <> "\n"
         )
 
-        assert_receive {^port, {:data, {:eol, tools_response}}}, 1_000
+        tools_response = receive_port_line!(port)
 
         assert %{
                  "id" => 2,
@@ -81,14 +87,35 @@ defmodule SymphonyElixir.LinearGraphqlMcpServerTest do
                  }
                } = Jason.decode!(to_string(tools_response))
       after
-        Port.close(port)
-
-        receive do
-          {^port, {:exit_status, _status}} -> :ok
-        after
-          100 -> :ok
-        end
+        close_port(port)
       end
+    end
+  end
+
+  defp receive_port_line!(port, timeout_ms \\ @port_response_timeout) do
+    receive do
+      {^port, {:data, {:eol, response}}} ->
+        response
+
+      {^port, {:exit_status, status}} ->
+        flunk("linear_graphql MCP server exited before responding (status #{status})")
+    after
+      timeout_ms ->
+        flunk("linear_graphql MCP server did not respond within #{timeout_ms}ms")
+    end
+  end
+
+  defp close_port(port) do
+    try do
+      Port.close(port)
+    rescue
+      ArgumentError -> :ok
+    end
+
+    receive do
+      {^port, {:exit_status, _status}} -> :ok
+    after
+      @port_exit_timeout -> :ok
     end
   end
 end
