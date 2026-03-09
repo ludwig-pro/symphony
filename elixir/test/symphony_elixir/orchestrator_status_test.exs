@@ -1064,7 +1064,7 @@ defmodule SymphonyElixir.OrchestratorStatusTest do
        }}
 
     rendered = StatusDashboard.format_snapshot_content_for_test(snapshot_data, 0.0)
-    plain = Regex.replace(~r/\e\[[0-9;]*m/, rendered, "")
+    plain = strip_ansi(rendered)
 
     assert plain =~ ~r/No active agents\r?\n│\s*\r?\n├─ Backoff queue/
   end
@@ -1103,7 +1103,7 @@ defmodule SymphonyElixir.OrchestratorStatusTest do
        }}
 
     rendered = StatusDashboard.format_snapshot_content_for_test(snapshot_data, 0.0)
-    plain = Regex.replace(~r/\e\[[0-9;]*m/, rendered, "")
+    plain = strip_ansi(rendered)
 
     assert plain =~ ~r/MT-777.*\r?\n│\s*\r?\n├─ Backoff queue/s
   end
@@ -1290,7 +1290,7 @@ defmodule SymphonyElixir.OrchestratorStatusTest do
         }
       })
 
-    plain = Regex.replace(~r/\e\[[\\d;]*m/, row, "")
+    plain = strip_ansi(row)
 
     assert plain =~ "turn completed (completed)"
     assert (String.split(plain, "turn completed (completed)") |> length()) - 1 == 1
@@ -1319,11 +1319,40 @@ defmodule SymphonyElixir.OrchestratorStatusTest do
         last_codex_message: payload
       })
 
-    plain = Regex.replace(~r/\e\[[0-9;]*m/, row, "")
+    plain = strip_ansi(row)
 
     assert plain =~ "cmd: RED after line"
     refute plain =~ <<27>>
     refute plain =~ <<0>>
+  end
+
+  test "status dashboard test helper ignores ambient terminal width" do
+    previous_columns = System.get_env("COLUMNS")
+    on_exit(fn -> restore_env("COLUMNS", previous_columns) end)
+    System.put_env("COLUMNS", "80")
+
+    row =
+      StatusDashboard.format_running_summary_for_test(%{
+        identifier: "MT-320",
+        state: "running",
+        session_id: "thread-1234567890",
+        codex_app_server_pid: "4242",
+        codex_total_tokens: 12,
+        runtime_seconds: 15,
+        last_codex_event: :notification,
+        last_codex_message: %{
+          event: :notification,
+          message: %{
+            "method" => "turn/completed",
+            "params" => %{"turn" => %{"status" => "completed"}}
+          }
+        }
+      })
+
+    plain = strip_ansi(row)
+
+    assert plain =~ "turn completed (completed)"
+    refute plain =~ "turn comp..."
   end
 
   test "status dashboard expands running row to requested terminal width" do
@@ -1350,7 +1379,7 @@ defmodule SymphonyElixir.OrchestratorStatusTest do
         terminal_columns
       )
 
-    plain = Regex.replace(~r/\e\[[\d;]*m/, row, "")
+    plain = strip_ansi(row)
 
     assert String.length(plain) == terminal_columns
     assert plain =~ "turn completed (completed)"
@@ -1600,4 +1629,6 @@ defmodule SymphonyElixir.OrchestratorStatusTest do
     end)
     |> elem(1)
   end
+
+  defp strip_ansi(value), do: Regex.replace(~r/\e\[[\d;]*m/, value, "")
 end
