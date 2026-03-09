@@ -32,9 +32,9 @@ defmodule SymphonyElixir.CLITest do
     }
 
     assert {:error, banner} = CLI.evaluate(["WORKFLOW.md"], deps)
-    assert banner =~ "This Symphony implementation is a low key engineering preview."
-    assert banner =~ "Codex will run without any guardrails."
-    assert banner =~ "SymphonyElixir is not a supported product and is presented as-is."
+    assert banner =~ "Cette implémentation de Symphony est un aperçu technique discret."
+    assert banner =~ "Codex s'exécutera sans garde-fous."
+    assert banner =~ "SymphonyElixir n'est pas un produit supporté et est fourni en l'état."
     assert banner =~ @ack_flag
     refute_received :file_checked
     refute_received :workflow_set
@@ -108,7 +108,7 @@ defmodule SymphonyElixir.CLITest do
     }
 
     assert {:error, message} = CLI.evaluate([@ack_flag, "WORKFLOW.md"], deps)
-    assert message =~ "Workflow file not found:"
+    assert message =~ "Fichier de workflow introuvable :"
   end
 
   test "returns startup error when app cannot start" do
@@ -121,7 +121,7 @@ defmodule SymphonyElixir.CLITest do
     }
 
     assert {:error, message} = CLI.evaluate([@ack_flag, "WORKFLOW.md"], deps)
-    assert message =~ "Failed to start Symphony with workflow"
+    assert message =~ "Impossible de démarrer Symphony avec le workflow"
     assert message =~ ":boom"
   end
 

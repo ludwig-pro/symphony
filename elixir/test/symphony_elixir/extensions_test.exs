@@ -418,7 +418,7 @@ defmodule SymphonyElixir.ExtensionsTest do
     conn = get(build_conn(), "/api/v1/MT-MISSING")
 
     assert json_response(conn, 404) == %{
-             "error" => %{"code" => "issue_not_found", "message" => "Issue not found"}
+             "error" => %{"code" => "issue_not_found", "message" => "Issue introuvable"}
            }
 
     conn = post(build_conn(), "/api/v1/refresh", %{})
@@ -447,7 +447,7 @@ defmodule SymphonyElixir.ExtensionsTest do
              %{
                "error" => %{
                  "code" => "unsupported_agent_preset",
-                 "message" => "Unsupported agent preset"
+                 "message" => "Profil d'agent non pris en charge"
                }
              }
   end
@@ -457,34 +457,34 @@ defmodule SymphonyElixir.ExtensionsTest do
     start_test_endpoint(orchestrator: unavailable_orchestrator, snapshot_timeout_ms: 5)
 
     assert json_response(post(build_conn(), "/api/v1/state", %{}), 405) ==
-             %{"error" => %{"code" => "method_not_allowed", "message" => "Method not allowed"}}
+             %{"error" => %{"code" => "method_not_allowed", "message" => "Méthode non autorisée"}}
 
     assert json_response(get(build_conn(), "/api/v1/refresh"), 405) ==
-             %{"error" => %{"code" => "method_not_allowed", "message" => "Method not allowed"}}
+             %{"error" => %{"code" => "method_not_allowed", "message" => "Méthode non autorisée"}}
 
     assert json_response(put(build_conn(), "/api/v1/config/agent", %{}), 405) ==
-             %{"error" => %{"code" => "method_not_allowed", "message" => "Method not allowed"}}
+             %{"error" => %{"code" => "method_not_allowed", "message" => "Méthode non autorisée"}}
 
     assert json_response(post(build_conn(), "/", %{}), 405) ==
-             %{"error" => %{"code" => "method_not_allowed", "message" => "Method not allowed"}}
+             %{"error" => %{"code" => "method_not_allowed", "message" => "Méthode non autorisée"}}
 
     assert json_response(post(build_conn(), "/api/v1/MT-1", %{}), 405) ==
-             %{"error" => %{"code" => "method_not_allowed", "message" => "Method not allowed"}}
+             %{"error" => %{"code" => "method_not_allowed", "message" => "Méthode non autorisée"}}
 
     assert json_response(get(build_conn(), "/unknown"), 404) ==
-             %{"error" => %{"code" => "not_found", "message" => "Route not found"}}
+             %{"error" => %{"code" => "not_found", "message" => "Route introuvable"}}
 
     state_payload = json_response(get(build_conn(), "/api/v1/state"), 200)
 
     assert state_payload["generated_at"]
-    assert state_payload["error"] == %{"code" => "snapshot_unavailable", "message" => "Snapshot unavailable"}
+    assert state_payload["error"] == %{"code" => "snapshot_unavailable", "message" => "Instantané indisponible"}
     assert_agent_payload(state_payload["agent"], "workflow-default")
 
     assert json_response(post(build_conn(), "/api/v1/refresh", %{}), 503) ==
              %{
                "error" => %{
                  "code" => "orchestrator_unavailable",
-                 "message" => "Orchestrator is unavailable"
+                 "message" => "L'orchestrateur est indisponible"
                }
              }
   end
@@ -497,7 +497,12 @@ defmodule SymphonyElixir.ExtensionsTest do
     timeout_payload = json_response(get(build_conn(), "/api/v1/state"), 200)
 
     assert timeout_payload["generated_at"]
-    assert timeout_payload["error"] == %{"code" => "snapshot_timeout", "message" => "Snapshot timed out"}
+
+    assert timeout_payload["error"] == %{
+             "code" => "snapshot_timeout",
+             "message" => "Délai d'attente dépassé pour l'instantané"
+           }
+
     assert_agent_payload(timeout_payload["agent"], "workflow-default")
   end
 
@@ -568,21 +573,22 @@ defmodule SymphonyElixir.ExtensionsTest do
     start_test_endpoint(orchestrator: orchestrator_name, snapshot_timeout_ms: 50)
 
     {:ok, view, html} = live(build_conn(), "/")
-    assert html =~ "Operations Dashboard"
+    assert html =~ "Tableau de bord des opérations"
     assert html =~ "MT-HTTP"
     assert html =~ "MT-RETRY"
     assert html =~ "rendered"
-    assert html =~ "Active agent"
-    assert html =~ "Workflow default - Codex"
-    assert html =~ "Claude bridge ready"
-    assert html =~ "Agent API"
-    assert html =~ "Runtime"
-    assert html =~ "State API"
-    assert html =~ "Runtime notes"
-    assert html =~ "Live"
-    assert html =~ "Offline"
-    assert html =~ "Copy ID"
-    assert html =~ "Codex update"
+    assert html =~ "Agent actif"
+    assert html =~ "Workflow par défaut - Codex"
+    assert html =~ "Passerelle Claude prête"
+    assert html =~ "API des agents"
+    assert html =~ "Durée d&#39;exécution"
+    assert html =~ "API d&#39;état"
+    assert html =~ "Notes d&#39;exécution"
+    assert html =~ "En direct"
+    assert html =~ "Hors ligne"
+    assert html =~ "En cours"
+    assert html =~ "Copier l&#39;ID"
+    assert html =~ "Mise à jour Codex"
     refute html =~ "data-runtime-clock="
     refute html =~ "setInterval(refreshRuntimeClocks"
     refute html =~ "Refresh now"
@@ -595,7 +601,7 @@ defmodule SymphonyElixir.ExtensionsTest do
       |> element("form.agent-switcher")
       |> render_change(%{"agent" => %{"preset_id" => "claude-sonnet"}})
 
-    assert switch_html =~ "Switched to Claude Code - next agents will use claude-sonnet-4-6."
+    assert switch_html =~ "Basculé vers Claude Code : les prochains agents utiliseront claude-sonnet-4-6."
     assert switch_html =~ "Claude Code - claude-sonnet-4-6"
     assert Config.codex_command() == "SYMPHONY_CLAUDE_MODEL=claude-sonnet-4-6 node ./scripts/claude_code_cli_bridge.mjs"
 
@@ -636,7 +642,7 @@ defmodule SymphonyElixir.ExtensionsTest do
     StatusDashboard.notify_update()
 
     assert_eventually(fn ->
-      render(view) =~ "agent message content streaming: structured update"
+      render(view) =~ "flux du contenu du message de l&#39;agent : structured update"
     end)
   end
 
@@ -647,7 +653,7 @@ defmodule SymphonyElixir.ExtensionsTest do
     )
 
     {:ok, _view, html} = live(build_conn(), "/")
-    assert html =~ "Snapshot unavailable"
+    assert html =~ "Instantané indisponible"
     assert html =~ "snapshot_unavailable"
   end
 

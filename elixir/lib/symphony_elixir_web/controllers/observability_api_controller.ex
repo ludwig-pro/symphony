@@ -26,7 +26,7 @@ defmodule SymphonyElixirWeb.ObservabilityApiController do
         json(conn, payload)
 
       {:error, :issue_not_found} ->
-        error_response(conn, 404, "issue_not_found", "Issue not found")
+        error_response(conn, 404, "issue_not_found", "Issue introuvable")
     end
   end
 
@@ -37,7 +37,7 @@ defmodule SymphonyElixirWeb.ObservabilityApiController do
         json(conn, payload)
 
       {:error, :unsupported_preset} ->
-        error_response(conn, 400, "unsupported_agent_preset", "Unsupported agent preset")
+        error_response(conn, 400, "unsupported_agent_preset", "Profil d'agent non pris en charge")
 
       {:error, {:preset_unavailable, reason}} ->
         error_response(conn, 422, "agent_preset_unavailable", reason)
@@ -45,7 +45,7 @@ defmodule SymphonyElixirWeb.ObservabilityApiController do
   end
 
   def update_agent(conn, _params) do
-    error_response(conn, 400, "invalid_request", "Expected `preset_id`.")
+    error_response(conn, 400, "invalid_request", "Le paramètre `preset_id` est attendu.")
   end
 
   @spec refresh(Conn.t(), map()) :: Conn.t()
@@ -57,18 +57,18 @@ defmodule SymphonyElixirWeb.ObservabilityApiController do
         |> json(payload)
 
       {:error, :unavailable} ->
-        error_response(conn, 503, "orchestrator_unavailable", "Orchestrator is unavailable")
+        error_response(conn, 503, "orchestrator_unavailable", "L'orchestrateur est indisponible")
     end
   end
 
   @spec method_not_allowed(Conn.t(), map()) :: Conn.t()
   def method_not_allowed(conn, _params) do
-    error_response(conn, 405, "method_not_allowed", "Method not allowed")
+    error_response(conn, 405, "method_not_allowed", "Méthode non autorisée")
   end
 
   @spec not_found(Conn.t(), map()) :: Conn.t()
   def not_found(conn, _params) do
-    error_response(conn, 404, "not_found", "Route not found")
+    error_response(conn, 404, "not_found", "Route introuvable")
   end
 
   defp error_response(conn, status, code, message) do

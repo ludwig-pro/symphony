@@ -162,7 +162,7 @@ defmodule SymphonyElixir.StatusDashboardSnapshotTest do
 
     [backoff_line] = backoff_lines
 
-    assert backoff_line =~ "error=error with newline"
+    assert backoff_line =~ "erreur=error with newline"
     refute backoff_line =~ "\\n"
   end
 

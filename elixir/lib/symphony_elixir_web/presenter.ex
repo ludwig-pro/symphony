@@ -26,10 +26,18 @@ defmodule SymphonyElixirWeb.Presenter do
         }
 
       :timeout ->
-        %{agent: agent, generated_at: generated_at, error: %{code: "snapshot_timeout", message: "Snapshot timed out"}}
+        %{
+          agent: agent,
+          generated_at: generated_at,
+          error: %{code: "snapshot_timeout", message: "Délai d'attente dépassé pour l'instantané"}
+        }
 
       :unavailable ->
-        %{agent: agent, generated_at: generated_at, error: %{code: "snapshot_unavailable", message: "Snapshot unavailable"}}
+        %{
+          agent: agent,
+          generated_at: generated_at,
+          error: %{code: "snapshot_unavailable", message: "Instantané indisponible"}
+        }
     end
   end
 

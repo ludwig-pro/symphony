@@ -25,6 +25,44 @@ defmodule SymphonyElixir.StatusDashboard do
   @running_event_min_width 12
   @running_row_chrome_width 10
   @default_terminal_columns 115
+  @humanized_item_types %{
+    "agent_message" => "message d'agent",
+    "command_execution" => "exécution de commande",
+    "file_change" => "modification de fichier",
+    "plan" => "plan",
+    "reasoning" => "raisonnement",
+    "token_count" => "compteur de jetons",
+    "tool_call" => "appel d'outil",
+    "user_message" => "message utilisateur"
+  }
+  @humanized_statuses %{
+    "active" => "actif",
+    "blocked" => "bloqué",
+    "cancelled" => "annulé",
+    "canceled" => "annulé",
+    "checking" => "vérification",
+    "complete" => "terminé",
+    "completed" => "terminé",
+    "created" => "créé",
+    "done" => "terminé",
+    "error" => "erreur",
+    "failed" => "échoué",
+    "finished" => "terminé",
+    "idle" => "au repos",
+    "in progress" => "en cours",
+    "pending" => "en attente",
+    "queued" => "en attente",
+    "retrying" => "en relance",
+    "running" => "en cours",
+    "started" => "démarré",
+    "starting" => "démarrage",
+    "stopped" => "arrêté",
+    "succeeded" => "réussi",
+    "success" => "réussi",
+    "todo" => "à faire",
+    "updated" => "mis à jour",
+    "warning" => "avertissement"
+  }
 
   @ansi_reset IO.ANSI.reset()
   @ansi_bold IO.ANSI.bright()
@@ -129,8 +167,8 @@ defmodule SymphonyElixir.StatusDashboard do
   def render_offline_status do
     content =
       [
-        colorize("╭─ SYMPHONY STATUS", @ansi_bold),
-        colorize("│ app_status=offline", @ansi_red),
+        colorize("╭─ STATUT DE SYMPHONY", @ansi_bold),
+        colorize("│ app_status=hors_ligne", @ansi_red),
         closing_border()
       ]
       |> Enum.join("\n")
@@ -345,31 +383,31 @@ defmodule SymphonyElixir.StatusDashboard do
         backoff_rows = format_retry_rows(retrying)
 
         ([
-           colorize("╭─ SYMPHONY STATUS", @ansi_bold),
-           colorize("│ Agents: ", @ansi_bold) <>
+           colorize("╭─ STATUT DE SYMPHONY", @ansi_bold),
+           colorize("│ Agents : ", @ansi_bold) <>
              colorize("#{agent_count}", @ansi_green) <>
              colorize("/", @ansi_gray) <>
              colorize("#{max_agents}", @ansi_gray),
-           colorize("│ Throughput: ", @ansi_bold) <> colorize("#{format_tps(tps)} tps", @ansi_cyan),
-           colorize("│ Runtime: ", @ansi_bold) <>
+           colorize("│ Débit : ", @ansi_bold) <> colorize("#{format_tps(tps)} tps", @ansi_cyan),
+           colorize("│ Durée : ", @ansi_bold) <>
              colorize(format_runtime_seconds(codex_seconds_running), @ansi_magenta),
-           colorize("│ Tokens: ", @ansi_bold) <>
-             colorize("in #{format_count(codex_input_tokens)}", @ansi_yellow) <>
+           colorize("│ Jetons : ", @ansi_bold) <>
+             colorize("entrée #{format_count(codex_input_tokens)}", @ansi_yellow) <>
              colorize(" | ", @ansi_gray) <>
-             colorize("out #{format_count(codex_output_tokens)}", @ansi_yellow) <>
+             colorize("sortie #{format_count(codex_output_tokens)}", @ansi_yellow) <>
              colorize(" | ", @ansi_gray) <>
              colorize("total #{format_count(codex_total_tokens)}", @ansi_yellow),
-           colorize("│ Rate Limits: ", @ansi_bold) <> format_rate_limits(rate_limits),
+           colorize("│ Limites : ", @ansi_bold) <> format_rate_limits(rate_limits),
            project_link_lines,
            project_refresh_line,
-           colorize("├─ Running", @ansi_bold),
+           colorize("├─ Actifs", @ansi_bold),
            "│",
            running_table_header_row(running_event_width),
            running_table_separator_row(running_event_width)
          ] ++
            running_rows ++
            running_to_backoff_spacer ++
-           [colorize("├─ Backoff queue", @ansi_bold), "│"] ++
+           [colorize("├─ File de temporisation", @ansi_bold), "│"] ++
            backoff_rows ++
            [closing_border()])
         |> List.flatten()
@@ -377,9 +415,9 @@ defmodule SymphonyElixir.StatusDashboard do
 
       :error ->
         [
-          colorize("╭─ SYMPHONY STATUS", @ansi_bold),
-          colorize("│ Orchestrator snapshot unavailable", @ansi_red),
-          colorize("│ Throughput: ", @ansi_bold) <> colorize("#{format_tps(tps)} tps", @ansi_cyan),
+          colorize("╭─ STATUT DE SYMPHONY", @ansi_bold),
+          colorize("│ Instantané de l'orchestrateur indisponible", @ansi_red),
+          colorize("│ Débit : ", @ansi_bold) <> colorize("#{format_tps(tps)} tps", @ansi_cyan),
           format_project_link_lines(),
           format_project_refresh_line(nil),
           closing_border()
@@ -396,14 +434,14 @@ defmodule SymphonyElixir.StatusDashboard do
           colorize(linear_project_url(project_slug), @ansi_cyan)
 
         _ ->
-          colorize("n/a", @ansi_gray)
+          colorize("n/d", @ansi_gray)
       end
 
-    project_line = colorize("│ Project: ", @ansi_bold) <> project_part
+    project_line = colorize("│ Projet : ", @ansi_bold) <> project_part
 
     case dashboard_url() do
       url when is_binary(url) ->
-        [project_line, colorize("│ Dashboard: ", @ansi_bold) <> colorize(url, @ansi_cyan)]
+        [project_line, colorize("│ Tableau de bord : ", @ansi_bold) <> colorize(url, @ansi_cyan)]
 
       _ ->
         [project_line]
@@ -411,17 +449,18 @@ defmodule SymphonyElixir.StatusDashboard do
   end
 
   defp format_project_refresh_line(%{checking?: true}) do
-    colorize("│ Next refresh: ", @ansi_bold) <> colorize("checking now…", @ansi_cyan)
+    colorize("│ Prochain rafraîchissement : ", @ansi_bold) <>
+      colorize("vérification en cours…", @ansi_cyan)
   end
 
   defp format_project_refresh_line(%{next_poll_in_ms: due_in_ms}) when is_integer(due_in_ms) do
     due_in_ms = max(due_in_ms, 0)
     seconds = div(due_in_ms + 999, 1000)
-    colorize("│ Next refresh: ", @ansi_bold) <> colorize("#{seconds}s", @ansi_cyan)
+    colorize("│ Prochain rafraîchissement : ", @ansi_bold) <> colorize("#{seconds}s", @ansi_cyan)
   end
 
   defp format_project_refresh_line(_) do
-    colorize("│ Next refresh: ", @ansi_bold) <> colorize("n/a", @ansi_gray)
+    colorize("│ Prochain rafraîchissement : ", @ansi_bold) <> colorize("n/d", @ansi_gray)
   end
 
   defp linear_project_url(project_slug), do: "https://linear.app/project/#{project_slug}/issues"
@@ -573,7 +612,7 @@ defmodule SymphonyElixir.StatusDashboard do
   defp format_running_rows(running, running_event_width) do
     if running == [] do
       [
-        "│  " <> colorize("No active agents", @ansi_gray),
+        "│  " <> colorize("Aucun agent actif", @ansi_gray),
         "│"
       ]
     else
@@ -585,11 +624,19 @@ defmodule SymphonyElixir.StatusDashboard do
 
   # credo:disable-for-next-line
   defp format_running_summary(running_entry, running_event_width) do
-    issue = format_cell(running_entry.identifier || "unknown", @running_id_width)
-    state = running_entry.state || "unknown"
-    state_display = format_cell(to_string(state), @running_stage_width)
+    issue = format_cell(running_entry.identifier || "inconnu", @running_id_width)
+
+    state =
+      running_entry.state
+      |> humanize_status()
+      |> case do
+        nil -> "inconnu"
+        label -> label
+      end
+
+    state_display = format_cell(state, @running_stage_width)
     session = running_entry.session_id |> compact_session_id() |> format_cell(@running_session_width)
-    pid = format_cell(running_entry.codex_app_server_pid || "n/a", @running_pid_width)
+    pid = format_cell(running_entry.codex_app_server_pid || "n/d", @running_pid_width)
     total_tokens = running_entry.codex_total_tokens || 0
     runtime_seconds = running_entry.runtime_seconds || 0
     turn_count = Map.get(running_entry, :turn_count, 0)
@@ -644,7 +691,7 @@ defmodule SymphonyElixir.StatusDashboard do
 
   defp format_retry_rows(retrying) do
     if retrying == [] do
-      ["│  " <> colorize("No queued retries", @ansi_gray)]
+      ["│  " <> colorize("Aucune relance en attente", @ansi_gray)]
     else
       retrying
       |> Enum.sort_by(& &1.due_in_ms)
@@ -654,7 +701,7 @@ defmodule SymphonyElixir.StatusDashboard do
   end
 
   defp format_retry_summary(retry_entry) do
-    issue_id = retry_entry.issue_id || "unknown"
+    issue_id = retry_entry.issue_id || "inconnu"
     identifier = retry_entry.identifier || issue_id
     attempt = retry_entry.attempt || 0
     due_in_ms = retry_entry.due_in_ms || 0
@@ -663,8 +710,8 @@ defmodule SymphonyElixir.StatusDashboard do
     "│  #{colorize("↻", @ansi_orange)} " <>
       colorize("#{identifier}", @ansi_red) <>
       " " <>
-      colorize("attempt=#{attempt}", @ansi_yellow) <>
-      colorize(" in ", @ansi_dim) <>
+      colorize("tentative=#{attempt}", @ansi_yellow) <>
+      colorize(" dans ", @ansi_dim) <>
       colorize(next_in_words(due_in_ms), @ansi_cyan) <>
       error
   end
@@ -675,7 +722,7 @@ defmodule SymphonyElixir.StatusDashboard do
     "#{secs}.#{String.pad_leading(to_string(millis), 3, "0")}s"
   end
 
-  defp next_in_words(_), do: "n/a"
+  defp next_in_words(_), do: "n/d"
 
   defp format_retry_error(error) when is_binary(error) do
     sanitized =
@@ -692,7 +739,7 @@ defmodule SymphonyElixir.StatusDashboard do
     if sanitized == "" do
       ""
     else
-      " " <> colorize("error=#{truncate(sanitized, 96)}", @ansi_dim)
+      " " <> colorize("erreur=#{truncate(sanitized, 96)}", @ansi_dim)
     end
   end
 
@@ -737,12 +784,12 @@ defmodule SymphonyElixir.StatusDashboard do
     header =
       [
         format_cell("ID", @running_id_width),
-        format_cell("STAGE", @running_stage_width),
+        format_cell("ÉTAT", @running_stage_width),
         format_cell("PID", @running_pid_width),
-        format_cell("AGE / TURN", @running_age_width),
-        format_cell("TOKENS", @running_tokens_width),
+        format_cell("ÂGE / TOUR", @running_age_width),
+        format_cell("JETONS", @running_tokens_width),
         format_cell("SESSION", @running_session_width),
-        format_cell("EVENT", running_event_width)
+        format_cell("ÉVÉNEMENT", running_event_width)
       ]
       |> Enum.join(" ")
 
@@ -826,8 +873,8 @@ defmodule SymphonyElixir.StatusDashboard do
     end
   end
 
-  defp compact_session_id(nil), do: "n/a"
-  defp compact_session_id(session_id) when not is_binary(session_id), do: "n/a"
+  defp compact_session_id(nil), do: "n/d"
+  defp compact_session_id(session_id) when not is_binary(session_id), do: "n/d"
 
   defp compact_session_id(session_id) do
     if String.length(session_id) > 10 do
@@ -917,12 +964,12 @@ defmodule SymphonyElixir.StatusDashboard do
   defp in_bucket?(timestamp, bucket_start, bucket_end, false),
     do: timestamp >= bucket_start and timestamp < bucket_end
 
-  defp format_rate_limits(nil), do: colorize("unavailable", @ansi_gray)
+  defp format_rate_limits(nil), do: colorize("indisponible", @ansi_gray)
 
   defp format_rate_limits(rate_limits) when is_map(rate_limits) do
     limit_id =
       map_value(rate_limits, ["limit_id", :limit_id, "limit_name", :limit_name]) ||
-        "unknown"
+        "inconnu"
 
     primary = format_rate_limit_bucket(map_value(rate_limits, ["primary", :primary]))
     secondary = format_rate_limit_bucket(map_value(rate_limits, ["secondary", :secondary]))
@@ -930,9 +977,9 @@ defmodule SymphonyElixir.StatusDashboard do
 
     colorize(to_string(limit_id), @ansi_yellow) <>
       colorize(" | ", @ansi_gray) <>
-      colorize("primary #{primary}", @ansi_cyan) <>
+      colorize("primaire #{primary}", @ansi_cyan) <>
       colorize(" | ", @ansi_gray) <>
-      colorize("secondary #{secondary}", @ansi_cyan) <>
+      colorize("secondaire #{secondary}", @ansi_cyan) <>
       colorize(" | ", @ansi_gray) <>
       colorize(credits, @ansi_green)
   end
@@ -944,7 +991,7 @@ defmodule SymphonyElixir.StatusDashboard do
     |> colorize(@ansi_gray)
   end
 
-  defp format_rate_limit_bucket(nil), do: "n/a"
+  defp format_rate_limit_bucket(nil), do: "n/d"
 
   defp format_rate_limit_bucket(bucket) when is_map(bucket) do
     remaining = map_value(bucket, ["remaining", :remaining])
@@ -972,13 +1019,13 @@ defmodule SymphonyElixir.StatusDashboard do
           "#{format_count(remaining)}/#{format_count(limit)}"
 
         integer_like?(remaining) ->
-          "remaining #{format_count(remaining)}"
+          "reste #{format_count(remaining)}"
 
         integer_like?(limit) ->
-          "limit #{format_count(limit)}"
+          "limite #{format_count(limit)}"
 
         map_size(bucket) == 0 ->
-          "n/a"
+          "n/d"
 
         true ->
           bucket |> inspect(limit: 6) |> truncate(40)
@@ -987,13 +1034,13 @@ defmodule SymphonyElixir.StatusDashboard do
     if is_nil(reset_value) do
       base
     else
-      "#{base} reset #{format_reset_value(reset_value)}"
+      "#{base} réinitialisation #{format_reset_value(reset_value)}"
     end
   end
 
   defp format_rate_limit_bucket(other), do: to_string(other)
 
-  defp format_rate_limit_credits(nil), do: "credits n/a"
+  defp format_rate_limit_credits(nil), do: "crédits n/d"
 
   defp format_rate_limit_credits(credits) when is_map(credits) do
     unlimited = map_value(credits, ["unlimited", :unlimited]) == true
@@ -1002,20 +1049,20 @@ defmodule SymphonyElixir.StatusDashboard do
 
     cond do
       unlimited ->
-        "credits unlimited"
+        "crédits illimités"
 
       has_credits and is_number(balance) ->
-        "credits #{format_number(balance)}"
+        "crédits #{format_number(balance)}"
 
       has_credits ->
-        "credits available"
+        "crédits disponibles"
 
       true ->
-        "credits none"
+        "crédits épuisés"
     end
   end
 
-  defp format_rate_limit_credits(other), do: "credits #{to_string(other)}"
+  defp format_rate_limit_credits(other), do: "crédits #{to_string(other)}"
 
   defp format_reset_value(value) when is_integer(value), do: "#{format_count(value)}s"
   defp format_reset_value(value) when is_binary(value), do: value
@@ -1066,7 +1113,7 @@ defmodule SymphonyElixir.StatusDashboard do
 
   @doc false
   @spec humanize_codex_message(term()) :: String.t()
-  def humanize_codex_message(nil), do: "no codex message yet"
+  def humanize_codex_message(nil), do: "aucun message Codex pour le moment"
 
   def humanize_codex_message(%{event: event, message: message}) do
     payload = unwrap_codex_message_payload(message)
@@ -1095,13 +1142,14 @@ defmodule SymphonyElixir.StatusDashboard do
     session_id = map_value(payload, ["session_id", :session_id])
 
     if is_binary(session_id) do
-      "session started (#{session_id})"
+      "session démarrée (#{session_id})"
     else
-      "session started"
+      "session démarrée"
     end
   end
 
-  defp humanize_codex_event(:turn_input_required, _message, _payload), do: "turn blocked: waiting for user input"
+  defp humanize_codex_event(:turn_input_required, _message, _payload),
+    do: "tour bloqué : en attente d'une saisie utilisateur"
 
   defp humanize_codex_event(:approval_auto_approved, message, payload) do
     method =
@@ -1113,9 +1161,9 @@ defmodule SymphonyElixir.StatusDashboard do
 
     base =
       if is_binary(method) do
-        "#{humanize_codex_method(method, payload)} (auto-approved)"
+        "#{humanize_codex_method(method, payload)} (auto-approuvé)"
       else
-        "approval request auto-approved"
+        "demande d'approbation auto-approuvée"
       end
 
     if is_binary(decision), do: "#{base}: #{decision}", else: base
@@ -1126,27 +1174,31 @@ defmodule SymphonyElixir.StatusDashboard do
 
     base =
       case humanize_codex_method("item/tool/requestUserInput", payload) do
-        nil -> "tool input auto-answered"
-        text -> "#{text} (auto-answered)"
+        nil -> "entrée d'outil répondue automatiquement"
+        text -> "#{text} (réponse automatique)"
       end
 
     if is_binary(answer), do: "#{base}: #{inline_text(answer)}", else: base
   end
 
   defp humanize_codex_event(:tool_call_completed, _message, payload),
-    do: humanize_dynamic_tool_event("dynamic tool call completed", payload)
+    do: humanize_dynamic_tool_event("appel d'outil dynamique terminé", payload)
 
   defp humanize_codex_event(:tool_call_failed, _message, payload),
-    do: humanize_dynamic_tool_event("dynamic tool call failed", payload)
+    do: humanize_dynamic_tool_event("appel d'outil dynamique échoué", payload)
 
   defp humanize_codex_event(:unsupported_tool_call, _message, payload),
-    do: humanize_dynamic_tool_event("unsupported dynamic tool call rejected", payload)
+    do: humanize_dynamic_tool_event("appel d'outil dynamique non pris en charge rejeté", payload)
 
-  defp humanize_codex_event(:turn_ended_with_error, message, _payload), do: "turn ended with error: #{format_reason(message)}"
-  defp humanize_codex_event(:startup_failed, message, _payload), do: "startup failed: #{format_reason(message)}"
+  defp humanize_codex_event(:turn_ended_with_error, message, _payload),
+    do: "tour terminé avec une erreur : #{format_reason(message)}"
+
+  defp humanize_codex_event(:startup_failed, message, _payload),
+    do: "démarrage échoué : #{format_reason(message)}"
+
   defp humanize_codex_event(:turn_failed, _message, payload), do: humanize_codex_method("turn/failed", payload)
-  defp humanize_codex_event(:turn_cancelled, _message, _payload), do: "turn cancelled"
-  defp humanize_codex_event(:malformed, _message, _payload), do: "malformed JSON event from codex"
+  defp humanize_codex_event(:turn_cancelled, _message, _payload), do: "tour annulé"
+  defp humanize_codex_event(:malformed, _message, _payload), do: "événement JSON mal formé provenant de Codex"
   defp humanize_codex_event(_event, _message, _payload), do: nil
 
   defp unwrap_codex_message_payload(%{} = message) do
@@ -1168,10 +1220,10 @@ defmodule SymphonyElixir.StatusDashboard do
       _ ->
         cond do
           is_binary(map_value(payload, ["session_id", :session_id])) ->
-            "session started (#{map_value(payload, ["session_id", :session_id])})"
+            "session démarrée (#{map_value(payload, ["session_id", :session_id])})"
 
           match?(%{"error" => _}, payload) ->
-            "error: #{format_error_value(Map.get(payload, "error"))}"
+            "erreur : #{format_error_value(Map.get(payload, "error"))}"
 
           true ->
             payload
@@ -1209,9 +1261,9 @@ defmodule SymphonyElixir.StatusDashboard do
     thread_id = map_path(payload, ["params", "thread", "id"]) || map_path(payload, [:params, :thread, :id])
 
     if is_binary(thread_id) do
-      "thread started (#{thread_id})"
+      "thread démarré (#{thread_id})"
     else
-      "thread started"
+      "thread démarré"
     end
   end
 
@@ -1219,17 +1271,19 @@ defmodule SymphonyElixir.StatusDashboard do
     turn_id = map_path(payload, ["params", "turn", "id"]) || map_path(payload, [:params, :turn, :id])
 
     if is_binary(turn_id) do
-      "turn started (#{turn_id})"
+      "tour démarré (#{turn_id})"
     else
-      "turn started"
+      "tour démarré"
     end
   end
 
   defp humanize_codex_method("turn/completed", payload) do
-    status =
-      map_path(payload, ["params", "turn", "status"]) ||
-        map_path(payload, [:params, :turn, :status]) ||
-        "completed"
+    status_label =
+      payload
+      |> map_path(["params", "turn", "status"])
+      |> fallback_turn_status(payload)
+      |> humanize_status()
+      |> Kernel.||("terminé")
 
     usage =
       map_path(payload, ["params", "usage"]) ||
@@ -1244,7 +1298,14 @@ defmodule SymphonyElixir.StatusDashboard do
         usage_text -> " (#{usage_text})"
       end
 
-    "turn completed (#{status})#{usage_suffix}"
+    base =
+      if status_label == "terminé" do
+        "tour terminé"
+      else
+        "tour terminé (#{status_label})"
+      end
+
+    "#{base}#{usage_suffix}"
   end
 
   defp humanize_codex_method("turn/failed", payload) do
@@ -1252,10 +1313,10 @@ defmodule SymphonyElixir.StatusDashboard do
       map_path(payload, ["params", "error", "message"]) ||
         map_path(payload, [:params, :error, :message])
 
-    if is_binary(error_message), do: "turn failed: #{error_message}", else: "turn failed"
+    if is_binary(error_message), do: "tour échoué : #{error_message}", else: "tour échoué"
   end
 
-  defp humanize_codex_method("turn/cancelled", _payload), do: "turn cancelled"
+  defp humanize_codex_method("turn/cancelled", _payload), do: "tour annulé"
 
   defp humanize_codex_method("turn/diff/updated", payload) do
     diff =
@@ -1265,9 +1326,9 @@ defmodule SymphonyElixir.StatusDashboard do
 
     if is_binary(diff) and diff != "" do
       line_count = diff |> String.split("\n", trim: true) |> length()
-      "turn diff updated (#{line_count} lines)"
+      "diff du tour mis à jour (#{line_count} lignes)"
     else
-      "turn diff updated"
+      "diff du tour mis à jour"
     end
   end
 
@@ -1282,9 +1343,9 @@ defmodule SymphonyElixir.StatusDashboard do
         []
 
     if is_list(plan_entries) do
-      "plan updated (#{length(plan_entries)} steps)"
+      "plan mis à jour (#{length(plan_entries)} étapes)"
     else
-      "plan updated"
+      "plan mis à jour"
     end
   end
 
@@ -1295,42 +1356,42 @@ defmodule SymphonyElixir.StatusDashboard do
         map_value(payload, ["usage", :usage])
 
     case format_usage_counts(usage) do
-      nil -> "thread token usage updated"
-      usage_text -> "thread token usage updated (#{usage_text})"
+      nil -> "usage de jetons du thread mis à jour"
+      usage_text -> "usage de jetons du thread mis à jour (#{usage_text})"
     end
   end
 
-  defp humanize_codex_method("item/started", payload), do: humanize_item_lifecycle("started", payload)
-  defp humanize_codex_method("item/completed", payload), do: humanize_item_lifecycle("completed", payload)
+  defp humanize_codex_method("item/started", payload), do: humanize_item_lifecycle("démarré", payload)
+  defp humanize_codex_method("item/completed", payload), do: humanize_item_lifecycle("terminé", payload)
 
   defp humanize_codex_method("item/agentMessage/delta", payload),
-    do: humanize_streaming_event("agent message streaming", payload)
+    do: humanize_streaming_event("flux des messages de l'agent", payload)
 
   defp humanize_codex_method("item/plan/delta", payload),
-    do: humanize_streaming_event("plan streaming", payload)
+    do: humanize_streaming_event("flux du plan", payload)
 
   defp humanize_codex_method("item/reasoning/summaryTextDelta", payload),
-    do: humanize_streaming_event("reasoning summary streaming", payload)
+    do: humanize_streaming_event("flux du résumé de raisonnement", payload)
 
   defp humanize_codex_method("item/reasoning/summaryPartAdded", payload),
-    do: humanize_streaming_event("reasoning summary section added", payload)
+    do: humanize_streaming_event("section de résumé de raisonnement ajoutée", payload)
 
   defp humanize_codex_method("item/reasoning/textDelta", payload),
-    do: humanize_streaming_event("reasoning text streaming", payload)
+    do: humanize_streaming_event("flux du texte de raisonnement", payload)
 
   defp humanize_codex_method("item/commandExecution/outputDelta", payload),
-    do: humanize_streaming_event("command output streaming", payload)
+    do: humanize_streaming_event("flux de sortie de commande", payload)
 
   defp humanize_codex_method("item/fileChange/outputDelta", payload),
-    do: humanize_streaming_event("file change output streaming", payload)
+    do: humanize_streaming_event("flux des changements de fichier", payload)
 
   defp humanize_codex_method("item/commandExecution/requestApproval", payload) do
     command = extract_command(payload)
 
     if is_binary(command) do
-      "command approval requested (#{command})"
+      "approbation de commande demandée (#{command})"
     else
-      "command approval requested"
+      "approbation de commande demandée"
     end
   end
 
@@ -1338,9 +1399,9 @@ defmodule SymphonyElixir.StatusDashboard do
     change_count = map_path(payload, ["params", "fileChangeCount"]) || map_path(payload, ["params", "changeCount"])
 
     if is_integer(change_count) and change_count > 0 do
-      "file change approval requested (#{change_count} files)"
+      "approbation de changement de fichier demandée (#{change_count} fichiers)"
     else
-      "file change approval requested"
+      "approbation de changement de fichier demandée"
     end
   end
 
@@ -1352,9 +1413,9 @@ defmodule SymphonyElixir.StatusDashboard do
         map_path(payload, [:params, :prompt])
 
     if is_binary(question) and String.trim(question) != "" do
-      "tool requires user input: #{inline_text(question)}"
+      "l'outil demande une saisie utilisateur : #{inline_text(question)}"
     else
-      "tool requires user input"
+      "l'outil demande une saisie utilisateur"
     end
   end
 
@@ -1365,9 +1426,9 @@ defmodule SymphonyElixir.StatusDashboard do
     auth_mode =
       map_path(payload, ["params", "authMode"]) ||
         map_path(payload, [:params, :authMode]) ||
-        "unknown"
+        "inconnu"
 
-    "account updated (auth #{auth_mode})"
+    "compte mis à jour (auth #{auth_mode})"
   end
 
   defp humanize_codex_method("account/rateLimits/updated", payload) do
@@ -1375,18 +1436,19 @@ defmodule SymphonyElixir.StatusDashboard do
       map_path(payload, ["params", "rateLimits"]) ||
         map_path(payload, [:params, :rateLimits])
 
-    "rate limits updated: #{format_rate_limits_summary(rate_limits)}"
+    "limites de débit mises à jour : #{format_rate_limits_summary(rate_limits)}"
   end
 
-  defp humanize_codex_method("account/chatgptAuthTokens/refresh", _payload), do: "account auth token refresh requested"
+  defp humanize_codex_method("account/chatgptAuthTokens/refresh", _payload),
+    do: "rafraîchissement du jeton d'authentification du compte demandé"
 
   defp humanize_codex_method("item/tool/call", payload) do
     tool = dynamic_tool_name(payload)
 
     if is_binary(tool) and String.trim(tool) != "" do
-      "dynamic tool call requested (#{tool})"
+      "appel d'outil dynamique demandé (#{tool})"
     else
-      "dynamic tool call requested"
+      "appel d'outil dynamique demandé"
     end
   end
 
@@ -1445,7 +1507,7 @@ defmodule SymphonyElixir.StatusDashboard do
       |> append_if_present(humanize_status(item_status))
 
     detail_suffix = if details == [], do: "", else: " (#{Enum.join(details, ", ")})"
-    "item #{state}: #{item_type}#{detail_suffix}"
+    "élément #{state}: #{item_type}#{detail_suffix}"
   end
 
   defp humanize_codex_wrapper_event("mcp_startup_update", payload) do
@@ -1459,56 +1521,58 @@ defmodule SymphonyElixir.StatusDashboard do
         map_path(payload, [:params, :msg, :status, :state]) ||
         "updated"
 
-    "mcp startup: #{server} #{state}"
+    "démarrage MCP : #{server} #{humanize_status(state) || state}"
   end
 
-  defp humanize_codex_wrapper_event("mcp_startup_complete", _payload), do: "mcp startup complete"
-  defp humanize_codex_wrapper_event("task_started", _payload), do: "task started"
-  defp humanize_codex_wrapper_event("user_message", _payload), do: "user message received"
+  defp humanize_codex_wrapper_event("mcp_startup_complete", _payload), do: "démarrage MCP terminé"
+  defp humanize_codex_wrapper_event("task_started", _payload), do: "tâche démarrée"
+  defp humanize_codex_wrapper_event("user_message", _payload), do: "message utilisateur reçu"
 
   defp humanize_codex_wrapper_event("item_started", payload) do
     case wrapper_payload_type(payload) do
       "token_count" -> humanize_codex_wrapper_event("token_count", payload)
-      type when is_binary(type) -> "item started (#{humanize_item_type(type)})"
-      _ -> "item started"
+      type when is_binary(type) -> "élément démarré (#{humanize_item_type(type)})"
+      _ -> "élément démarré"
     end
   end
 
   defp humanize_codex_wrapper_event("item_completed", payload) do
     case wrapper_payload_type(payload) do
       "token_count" -> humanize_codex_wrapper_event("token_count", payload)
-      type when is_binary(type) -> "item completed (#{humanize_item_type(type)})"
-      _ -> "item completed"
+      type when is_binary(type) -> "élément terminé (#{humanize_item_type(type)})"
+      _ -> "élément terminé"
     end
   end
 
   defp humanize_codex_wrapper_event("agent_message_delta", payload),
-    do: humanize_streaming_event("agent message streaming", payload)
+    do: humanize_streaming_event("flux des messages de l'agent", payload)
 
   defp humanize_codex_wrapper_event("agent_message_content_delta", payload),
-    do: humanize_streaming_event("agent message content streaming", payload)
+    do: humanize_streaming_event("flux du contenu du message de l'agent", payload)
 
   defp humanize_codex_wrapper_event("agent_reasoning_delta", payload),
-    do: humanize_streaming_event("reasoning streaming", payload)
+    do: humanize_streaming_event("flux du raisonnement", payload)
 
   defp humanize_codex_wrapper_event("reasoning_content_delta", payload),
-    do: humanize_streaming_event("reasoning content streaming", payload)
+    do: humanize_streaming_event("flux du contenu du raisonnement", payload)
 
-  defp humanize_codex_wrapper_event("agent_reasoning_section_break", _payload), do: "reasoning section break"
+  defp humanize_codex_wrapper_event("agent_reasoning_section_break", _payload),
+    do: "séparation de section de raisonnement"
+
   defp humanize_codex_wrapper_event("agent_reasoning", payload), do: humanize_reasoning_update(payload)
-  defp humanize_codex_wrapper_event("turn_diff", _payload), do: "turn diff updated"
+  defp humanize_codex_wrapper_event("turn_diff", _payload), do: "diff du tour mis à jour"
   defp humanize_codex_wrapper_event("exec_command_begin", payload), do: humanize_exec_command_begin(payload)
   defp humanize_codex_wrapper_event("exec_command_end", payload), do: humanize_exec_command_end(payload)
-  defp humanize_codex_wrapper_event("exec_command_output_delta", _payload), do: "command output streaming"
-  defp humanize_codex_wrapper_event("mcp_tool_call_begin", _payload), do: "mcp tool call started"
-  defp humanize_codex_wrapper_event("mcp_tool_call_end", _payload), do: "mcp tool call completed"
+  defp humanize_codex_wrapper_event("exec_command_output_delta", _payload), do: "flux de sortie de commande"
+  defp humanize_codex_wrapper_event("mcp_tool_call_begin", _payload), do: "appel d'outil MCP démarré"
+  defp humanize_codex_wrapper_event("mcp_tool_call_end", _payload), do: "appel d'outil MCP terminé"
 
   defp humanize_codex_wrapper_event("token_count", payload) do
     usage = extract_first_path(payload, token_usage_paths())
 
     case format_usage_counts(usage) do
-      nil -> "token count update"
-      usage_text -> "token count update (#{usage_text})"
+      nil -> "mise à jour du nombre de jetons"
+      usage_text -> "mise à jour du nombre de jetons (#{usage_text})"
     end
   end
 
@@ -1536,7 +1600,7 @@ defmodule SymphonyElixir.StatusDashboard do
     if is_binary(command) do
       command
     else
-      "command started"
+      "commande démarrée"
     end
   end
 
@@ -1548,9 +1612,9 @@ defmodule SymphonyElixir.StatusDashboard do
         map_path(payload, [:params, :msg, :exitCode])
 
     if is_integer(exit_code) do
-      "command completed (exit #{exit_code})"
+      "commande terminée (code #{exit_code})"
     else
-      "command completed"
+      "commande terminée"
     end
   end
 
@@ -1597,8 +1661,8 @@ defmodule SymphonyElixir.StatusDashboard do
 
     parts =
       []
-      |> append_usage_part("in", input)
-      |> append_usage_part("out", output)
+      |> append_usage_part("entrée", input)
+      |> append_usage_part("sortie", output)
       |> append_usage_part("total", total)
 
     case parts do
@@ -1612,7 +1676,7 @@ defmodule SymphonyElixir.StatusDashboard do
   defp append_usage_part(parts, _label, value) when not is_integer(value), do: parts
   defp append_usage_part(parts, label, value), do: parts ++ ["#{label} #{format_count(value)}"]
 
-  defp format_rate_limits_summary(nil), do: "n/a"
+  defp format_rate_limits_summary(nil), do: "n/d"
 
   defp format_rate_limits_summary(rate_limits) when is_map(rate_limits) do
     primary = map_value(rate_limits, ["primary", :primary])
@@ -1622,14 +1686,14 @@ defmodule SymphonyElixir.StatusDashboard do
     secondary_text = format_rate_limit_bucket_summary(secondary)
 
     cond do
-      primary_text != nil and secondary_text != nil -> "primary #{primary_text}; secondary #{secondary_text}"
-      primary_text != nil -> "primary #{primary_text}"
-      secondary_text != nil -> "secondary #{secondary_text}"
-      true -> "n/a"
+      primary_text != nil and secondary_text != nil -> "primaire #{primary_text}; secondaire #{secondary_text}"
+      primary_text != nil -> "primaire #{primary_text}"
+      secondary_text != nil -> "secondaire #{secondary_text}"
+      true -> "n/d"
     end
   end
 
-  defp format_rate_limits_summary(_rate_limits), do: "n/a"
+  defp format_rate_limits_summary(_rate_limits), do: "n/d"
 
   defp format_rate_limit_bucket_summary(bucket) when is_map(bucket) do
     used_percent = map_value(bucket, ["usedPercent", :usedPercent])
@@ -1640,7 +1704,7 @@ defmodule SymphonyElixir.StatusDashboard do
         "#{used_percent}% / #{window_mins}m"
 
       is_number(used_percent) ->
-        "#{used_percent}% used"
+        "#{used_percent}% utilisé"
 
       true ->
         nil
@@ -1670,14 +1734,14 @@ defmodule SymphonyElixir.StatusDashboard do
   defp humanize_streaming_event(label, payload) do
     case extract_delta_preview(payload) do
       nil -> label
-      preview -> "#{label}: #{preview}"
+      preview -> "#{label} : #{preview}"
     end
   end
 
   defp humanize_reasoning_update(payload) do
     case extract_reasoning_focus(payload) do
-      nil -> "reasoning update"
-      focus -> "reasoning update: #{focus}"
+      nil -> "mise à jour du raisonnement"
+      focus -> "mise à jour du raisonnement : #{focus}"
     end
   end
 
@@ -1721,6 +1785,11 @@ defmodule SymphonyElixir.StatusDashboard do
 
   defp fallback_command(command, _payload), do: command
 
+  defp fallback_turn_status(nil, payload),
+    do: map_path(payload, [:params, :turn, :status]) || "completed"
+
+  defp fallback_turn_status(status, _payload), do: status
+
   defp normalize_command(%{} = command) do
     binary_command = map_value(command, ["parsedCmd", :parsedCmd, "command", :command, "cmd", :cmd])
     args = map_value(command, ["args", :args, "argv", :argv])
@@ -1746,25 +1815,33 @@ defmodule SymphonyElixir.StatusDashboard do
 
   defp normalize_command(_command), do: nil
 
-  defp humanize_item_type(nil), do: "item"
+  defp humanize_item_type(nil), do: "élément"
 
   defp humanize_item_type(type) when is_binary(type) do
-    type
-    |> String.replace(~r/([a-z0-9])([A-Z])/, "\\1 \\2")
-    |> String.replace("_", " ")
-    |> String.replace("/", " ")
-    |> String.downcase()
-    |> String.trim()
+    normalized =
+      type
+      |> String.replace(~r/([a-z0-9])([A-Z])/, "\\1_\\2")
+      |> String.replace("-", "_")
+      |> String.replace("/", "_")
+      |> String.replace(" ", "_")
+      |> String.downcase()
+      |> String.trim("_")
+
+    Map.get(@humanized_item_types, normalized, normalized |> String.replace("_", " ") |> String.trim())
   end
 
   defp humanize_item_type(type), do: to_string(type)
 
   defp humanize_status(status) when is_binary(status) do
-    status
-    |> String.replace("_", " ")
-    |> String.replace("-", " ")
-    |> String.downcase()
-    |> String.trim()
+    normalized =
+      status
+      |> String.replace(~r/([a-z0-9])([A-Z])/, "\\1_\\2")
+      |> String.replace("_", " ")
+      |> String.replace("-", " ")
+      |> String.downcase()
+      |> String.trim()
+
+    Map.get(@humanized_statuses, normalized, normalized)
   end
 
   defp humanize_status(_status), do: nil

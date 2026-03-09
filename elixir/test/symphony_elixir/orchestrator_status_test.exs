@@ -966,7 +966,7 @@ defmodule SymphonyElixir.OrchestratorStatusTest do
         assert :ok = StatusDashboard.render_offline_status()
       end)
 
-    assert rendered =~ "app_status=offline"
+    assert rendered =~ "app_status=hors_ligne"
     refute rendered =~ "Timestamp:"
   end
 
@@ -983,7 +983,7 @@ defmodule SymphonyElixir.OrchestratorStatusTest do
     rendered = StatusDashboard.format_snapshot_content_for_test(snapshot_data, 0.0)
 
     assert rendered =~ "https://linear.app/project/project/issues"
-    refute rendered =~ "Dashboard:"
+    refute rendered =~ "Tableau de bord :"
   end
 
   test "status dashboard renders dashboard url on its own line when server port is configured" do
@@ -1010,9 +1010,9 @@ defmodule SymphonyElixir.OrchestratorStatusTest do
 
     rendered = StatusDashboard.format_snapshot_content_for_test(snapshot_data, 0.0)
 
-    assert rendered =~ "│ Project:"
+    assert rendered =~ "│ Projet :"
     assert rendered =~ "https://linear.app/project/project/issues"
-    assert rendered =~ "│ Dashboard:"
+    assert rendered =~ "│ Tableau de bord :"
     assert rendered =~ "http://127.0.0.1:4000/"
   end
 
@@ -1036,7 +1036,7 @@ defmodule SymphonyElixir.OrchestratorStatusTest do
        }}
 
     waiting_rendered = StatusDashboard.format_snapshot_content_for_test(waiting_snapshot, 0.0)
-    assert waiting_rendered =~ "Next refresh:"
+    assert waiting_rendered =~ "Prochain rafraîchissement :"
     assert waiting_rendered =~ "2s"
 
     checking_snapshot =
@@ -1050,7 +1050,7 @@ defmodule SymphonyElixir.OrchestratorStatusTest do
        }}
 
     checking_rendered = StatusDashboard.format_snapshot_content_for_test(checking_snapshot, 0.0)
-    assert checking_rendered =~ "checking now…"
+    assert checking_rendered =~ "vérification en cours…"
   end
 
   test "status dashboard adds a spacer line before backoff queue when no agents are active" do
@@ -1066,7 +1066,7 @@ defmodule SymphonyElixir.OrchestratorStatusTest do
     rendered = StatusDashboard.format_snapshot_content_for_test(snapshot_data, 0.0)
     plain = strip_ansi(rendered)
 
-    assert plain =~ ~r/No active agents\r?\n│\s*\r?\n├─ Backoff queue/
+    assert plain =~ ~r/Aucun agent actif\r?\n│\s*\r?\n├─ File de temporisation/
   end
 
   test "status dashboard adds a spacer line before backoff queue when agents are active" do
@@ -1105,7 +1105,7 @@ defmodule SymphonyElixir.OrchestratorStatusTest do
     rendered = StatusDashboard.format_snapshot_content_for_test(snapshot_data, 0.0)
     plain = strip_ansi(rendered)
 
-    assert plain =~ ~r/MT-777.*\r?\n│\s*\r?\n├─ Backoff queue/s
+    assert plain =~ ~r/MT-777.*\r?\n│\s*\r?\n├─ File de temporisation/s
   end
 
   test "status dashboard renders an unstyled closing corner when the retry queue is empty" do
@@ -1292,8 +1292,8 @@ defmodule SymphonyElixir.OrchestratorStatusTest do
 
     plain = strip_ansi(row)
 
-    assert plain =~ "turn completed (completed)"
-    assert (String.split(plain, "turn completed (completed)") |> length()) - 1 == 1
+    assert plain =~ "tour terminé"
+    assert (String.split(plain, "tour terminé") |> length()) - 1 == 1
     refute plain =~ " notification "
   end
 
@@ -1351,8 +1351,8 @@ defmodule SymphonyElixir.OrchestratorStatusTest do
 
     plain = strip_ansi(row)
 
-    assert plain =~ "turn completed (completed)"
-    refute plain =~ "turn comp..."
+    assert plain =~ "tour terminé"
+    refute plain =~ "tour ter..."
   end
 
   test "status dashboard expands running row to requested terminal width" do
@@ -1382,21 +1382,21 @@ defmodule SymphonyElixir.OrchestratorStatusTest do
     plain = strip_ansi(row)
 
     assert String.length(plain) == terminal_columns
-    assert plain =~ "turn completed (completed)"
+    assert plain =~ "tour terminé"
   end
 
   test "status dashboard humanizes full codex app-server event set" do
     event_cases = [
-      {"turn/started", %{"params" => %{"turn" => %{"id" => "turn-1"}}}, "turn started"},
-      {"turn/completed", %{"params" => %{"turn" => %{"status" => "completed"}}}, "turn completed"},
-      {"turn/diff/updated", %{"params" => %{"diff" => "line1\nline2"}}, "turn diff updated"},
-      {"turn/plan/updated", %{"params" => %{"plan" => [%{"step" => "a"}, %{"step" => "b"}]}}, "plan updated"},
+      {"turn/started", %{"params" => %{"turn" => %{"id" => "turn-1"}}}, "tour démarré"},
+      {"turn/completed", %{"params" => %{"turn" => %{"status" => "completed"}}}, "tour terminé"},
+      {"turn/diff/updated", %{"params" => %{"diff" => "line1\nline2"}}, "diff du tour mis à jour"},
+      {"turn/plan/updated", %{"params" => %{"plan" => [%{"step" => "a"}, %{"step" => "b"}]}}, "plan mis à jour"},
       {"thread/tokenUsage/updated",
        %{
          "params" => %{
            "usage" => %{"input_tokens" => 8, "output_tokens" => 3, "total_tokens" => 11}
          }
-       }, "thread token usage updated"},
+       }, "usage de jetons du thread mis à jour"},
       {"item/started",
        %{
          "params" => %{
@@ -1406,19 +1406,19 @@ defmodule SymphonyElixir.OrchestratorStatusTest do
              "status" => "running"
            }
          }
-       }, "item started: command execution"},
-      {"item/completed", %{"params" => %{"item" => %{"type" => "fileChange", "status" => "completed"}}}, "item completed: file change"},
-      {"item/agentMessage/delta", %{"params" => %{"delta" => "hello"}}, "agent message streaming"},
-      {"item/plan/delta", %{"params" => %{"delta" => "step"}}, "plan streaming"},
-      {"item/reasoning/summaryTextDelta", %{"params" => %{"summaryText" => "thinking"}}, "reasoning summary streaming"},
-      {"item/reasoning/summaryPartAdded", %{"params" => %{"summaryText" => "section"}}, "reasoning summary section added"},
-      {"item/reasoning/textDelta", %{"params" => %{"textDelta" => "reason"}}, "reasoning text streaming"},
-      {"item/commandExecution/outputDelta", %{"params" => %{"outputDelta" => "ok"}}, "command output streaming"},
-      {"item/fileChange/outputDelta", %{"params" => %{"outputDelta" => "changed"}}, "file change output streaming"},
-      {"item/commandExecution/requestApproval", %{"params" => %{"parsedCmd" => "git status"}}, "command approval requested (git status)"},
-      {"item/fileChange/requestApproval", %{"params" => %{"fileChangeCount" => 2}}, "file change approval requested (2 files)"},
-      {"item/tool/call", %{"params" => %{"tool" => "linear_graphql"}}, "dynamic tool call requested (linear_graphql)"},
-      {"item/tool/requestUserInput", %{"params" => %{"question" => "Continue?"}}, "tool requires user input: Continue?"}
+       }, "élément démarré: exécution de commande"},
+      {"item/completed", %{"params" => %{"item" => %{"type" => "fileChange", "status" => "completed"}}}, "élément terminé: modification de fichier"},
+      {"item/agentMessage/delta", %{"params" => %{"delta" => "hello"}}, "flux des messages de l'agent"},
+      {"item/plan/delta", %{"params" => %{"delta" => "step"}}, "flux du plan"},
+      {"item/reasoning/summaryTextDelta", %{"params" => %{"summaryText" => "thinking"}}, "flux du résumé de raisonnement"},
+      {"item/reasoning/summaryPartAdded", %{"params" => %{"summaryText" => "section"}}, "section de résumé de raisonnement ajoutée"},
+      {"item/reasoning/textDelta", %{"params" => %{"textDelta" => "reason"}}, "flux du texte de raisonnement"},
+      {"item/commandExecution/outputDelta", %{"params" => %{"outputDelta" => "ok"}}, "flux de sortie de commande"},
+      {"item/fileChange/outputDelta", %{"params" => %{"outputDelta" => "changed"}}, "flux des changements de fichier"},
+      {"item/commandExecution/requestApproval", %{"params" => %{"parsedCmd" => "git status"}}, "approbation de commande demandée (git status)"},
+      {"item/fileChange/requestApproval", %{"params" => %{"fileChangeCount" => 2}}, "approbation de changement de fichier demandée (2 fichiers)"},
+      {"item/tool/call", %{"params" => %{"tool" => "linear_graphql"}}, "appel d'outil dynamique demandé (linear_graphql)"},
+      {"item/tool/requestUserInput", %{"params" => %{"question" => "Continue?"}}, "l'outil demande une saisie utilisateur : Continue?"}
     ]
 
     Enum.each(event_cases, fn {method, payload, expected_fragment} ->
@@ -1454,13 +1454,13 @@ defmodule SymphonyElixir.OrchestratorStatusTest do
     }
 
     assert StatusDashboard.humanize_codex_message(completed) =~
-             "dynamic tool call completed (linear_graphql)"
+             "appel d'outil dynamique terminé (linear_graphql)"
 
     assert StatusDashboard.humanize_codex_message(failed) =~
-             "dynamic tool call failed (linear_graphql)"
+             "appel d'outil dynamique échoué (linear_graphql)"
 
     assert StatusDashboard.humanize_codex_message(unsupported) =~
-             "unsupported dynamic tool call rejected (unknown_tool)"
+             "appel d'outil dynamique non pris en charge rejeté (unknown_tool)"
   end
 
   test "status dashboard unwraps nested codex payload envelopes" do
@@ -1478,8 +1478,8 @@ defmodule SymphonyElixir.OrchestratorStatusTest do
       }
     }
 
-    assert StatusDashboard.humanize_codex_message(wrapped) =~ "turn completed"
-    assert StatusDashboard.humanize_codex_message(wrapped) =~ "in 10"
+    assert StatusDashboard.humanize_codex_message(wrapped) =~ "tour terminé"
+    assert StatusDashboard.humanize_codex_message(wrapped) =~ "entrée 10"
   end
 
   test "status dashboard uses shell command line as exec command status text" do
@@ -1507,8 +1507,8 @@ defmodule SymphonyElixir.OrchestratorStatusTest do
     }
 
     humanized = StatusDashboard.humanize_codex_message(message)
-    assert humanized =~ "command approval requested"
-    assert humanized =~ "auto-approved"
+    assert humanized =~ "approbation de commande demandée"
+    assert humanized =~ "auto-approuvé"
   end
 
   test "status dashboard formats auto-answered tool input updates from codex" do
@@ -1519,13 +1519,14 @@ defmodule SymphonyElixir.OrchestratorStatusTest do
           "method" => "item/tool/requestUserInput",
           "params" => %{"question" => "Continue?"}
         },
-        answer: "This is a non-interactive session. Operator input is unavailable."
+        answer: "Cette session n'est pas interactive. La saisie de l'opérateur est indisponible."
       }
     }
 
     humanized = StatusDashboard.humanize_codex_message(message)
-    assert humanized =~ "tool requires user input"
-    assert humanized =~ "auto-answered"
+    assert humanized =~ "l'outil demande une saisie utilisateur"
+    assert humanized =~ "réponse automatique"
+    assert humanized =~ "Cette session n'est pas interactive."
   end
 
   test "status dashboard enriches wrapper reasoning and message streaming events with payload context" do
@@ -1562,12 +1563,12 @@ defmodule SymphonyElixir.OrchestratorStatusTest do
     }
 
     assert StatusDashboard.humanize_codex_message(reasoning_message) =~
-             "reasoning update: compare retry paths for Linear polling"
+             "mise à jour du raisonnement : compare retry paths for Linear polling"
 
     assert StatusDashboard.humanize_codex_message(message_delta) =~
-             "agent message streaming: writing workpad reconciliation update"
+             "flux des messages de l'agent : writing workpad reconciliation update"
 
-    assert StatusDashboard.humanize_codex_message(fallback_reasoning) == "reasoning update"
+    assert StatusDashboard.humanize_codex_message(fallback_reasoning) == "mise à jour du raisonnement"
   end
 
   test "application stop renders offline status" do
@@ -1576,7 +1577,7 @@ defmodule SymphonyElixir.OrchestratorStatusTest do
         assert :ok = SymphonyElixir.Application.stop(:normal)
       end)
 
-    assert rendered =~ "app_status=offline"
+    assert rendered =~ "app_status=hors_ligne"
     refute rendered =~ "Timestamp:"
   end
 

@@ -1,18 +1,18 @@
-\e[1m╭─ SYMPHONY STATUS\e[0m
-\e[1m│ Agents: \e[0m\e[32m0\e[0m\e[90m/\e[0m\e[90m10\e[0m
-\e[1m│ Throughput: \e[0m\e[36m0 tps\e[0m
-\e[1m│ Runtime: \e[0m\e[35m0m 0s\e[0m
-\e[1m│ Tokens: \e[0m\e[33min 0\e[0m\e[90m | \e[0m\e[33mout 0\e[0m\e[90m | \e[0m\e[33mtotal 0\e[0m
-\e[1m│ Rate Limits: \e[0m\e[90munavailable\e[0m
-\e[1m│ Project: \e[0m\e[36mhttps://linear.app/project/project/issues\e[0m
-\e[1m│ Next refresh: \e[0m\e[90mn/a\e[0m
-\e[1m├─ Running\e[0m
+\e[1m╭─ STATUT DE SYMPHONY\e[0m
+\e[1m│ Agents : \e[0m\e[32m0\e[0m\e[90m/\e[0m\e[90m10\e[0m
+\e[1m│ Débit : \e[0m\e[36m0 tps\e[0m
+\e[1m│ Durée : \e[0m\e[35m0m 0s\e[0m
+\e[1m│ Jetons : \e[0m\e[33mentrée 0\e[0m\e[90m | \e[0m\e[33msortie 0\e[0m\e[90m | \e[0m\e[33mtotal 0\e[0m
+\e[1m│ Limites : \e[0m\e[90mindisponible\e[0m
+\e[1m│ Projet : \e[0m\e[36mhttps://linear.app/project/project/issues\e[0m
+\e[1m│ Prochain rafraîchissement : \e[0m\e[90mn/d\e[0m
+\e[1m├─ Actifs\e[0m
 │
-│   \e[90mID       STAGE          PID      AGE / TURN   TOKENS     SESSION        EVENT                                  \e[0m
+│   \e[90mID       ÉTAT           PID      ÂGE / TOUR   JETONS     SESSION        ÉVÉNEMENT                              \e[0m
 │   \e[90m───────────────────────────────────────────────────────────────────────────────────────────────────────────────\e[0m
-│  \e[90mNo active agents\e[0m
+│  \e[90mAucun agent actif\e[0m
 │
-\e[1m├─ Backoff queue\e[0m
+\e[1m├─ File de temporisation\e[0m
 │
-│  \e[90mNo queued retries\e[0m
+│  \e[90mAucune relance en attente\e[0m
 ╰─

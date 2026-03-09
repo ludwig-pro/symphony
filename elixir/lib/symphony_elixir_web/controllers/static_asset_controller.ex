@@ -29,7 +29,7 @@ defmodule SymphonyElixirWeb.StaticAssetController do
         |> send_resp(200, body)
 
       :error ->
-        send_resp(conn, 404, "Not Found")
+        send_resp(conn, 404, "Introuvable")
     end
   end
 end

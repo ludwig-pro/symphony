@@ -486,7 +486,7 @@ defmodule SymphonyElixir.AppServerTest do
       assert_received {:app_server_message,
                        %{
                          event: :tool_input_auto_answered,
-                         answer: "This is a non-interactive session. Operator input is unavailable."
+                         answer: "Cette session n'est pas interactive. La saisie de l'opérateur est indisponible."
                        }}
     after
       File.rm_rf(test_root)
@@ -582,7 +582,7 @@ defmodule SymphonyElixir.AppServerTest do
 
                  payload["id"] == 112 and
                    get_in(payload, ["result", "answers", "options-719", "answers"]) == [
-                     "This is a non-interactive session. Operator input is unavailable."
+                     "Cette session n'est pas interactive. La saisie de l'opérateur est indisponible."
                    ]
                else
                  false

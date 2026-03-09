@@ -8,6 +8,22 @@ defmodule SymphonyElixirWeb.DashboardLive do
   alias SymphonyElixir.AgentConfig
   alias SymphonyElixirWeb.{Endpoint, ObservabilityPubSub, Presenter}
   @runtime_tick_ms 1_000
+  @translated_state_badges %{
+    "active" => "Actif",
+    "blocked" => "Bloqué",
+    "cancelled" => "Annulé",
+    "canceled" => "Annulé",
+    "completed" => "Terminé",
+    "done" => "Terminé",
+    "error" => "Erreur",
+    "failed" => "Échoué",
+    "in progress" => "En cours",
+    "pending" => "En attente",
+    "queued" => "En attente",
+    "retrying" => "En relance",
+    "running" => "En cours",
+    "todo" => "À faire"
+  }
 
   @impl true
   def mount(_params, _session, socket) do
@@ -52,12 +68,12 @@ defmodule SymphonyElixirWeb.DashboardLive do
         {:noreply, put_flash(socket, :error, reason)}
 
       {:error, :unsupported_preset} ->
-        {:noreply, put_flash(socket, :error, "Unsupported agent preset.")}
+        {:noreply, put_flash(socket, :error, "Profil d'agent non pris en charge.")}
     end
   end
 
   def handle_event("switch_agent", _params, socket) do
-    {:noreply, put_flash(socket, :error, "Expected an agent preset selection.")}
+    {:noreply, put_flash(socket, :error, "Sélection d'un profil d'agent attendue.")}
   end
 
   @impl true
@@ -75,23 +91,23 @@ defmodule SymphonyElixirWeb.DashboardLive do
         <div class="hero-layout">
           <div class="hero-copy-block">
             <p class="eyebrow">
-              Symphony Observability
+              Observabilité Symphony
             </p>
             <h1 class="hero-title">
-              Operations Dashboard
+              Tableau de bord des opérations
             </h1>
             <p class="hero-copy">
-              Shadcn-inspired mission control for live orchestration health, retry pressure, token usage, and queue visibility across the active Symphony runtime.
+              Centre de contrôle en direct pour suivre la santé de l'orchestration, la pression des relances, l'usage des jetons et la visibilité de la file dans le runtime Symphony actif.
             </p>
 
             <div class="hero-meta-grid">
               <article class="hero-meta-card">
-                <p class="hero-meta-label">Snapshot</p>
-                <p class="hero-meta-value mono"><%= @payload.generated_at || "n/a" %></p>
+                <p class="hero-meta-label">Instantané</p>
+                <p class="hero-meta-value mono"><%= @payload.generated_at || "n/d" %></p>
               </article>
 
               <article class="hero-meta-card">
-                <p class="hero-meta-label">Runtime mode</p>
+                <p class="hero-meta-label">Mode d'exécution</p>
                 <p class="hero-meta-value"><%= dashboard_mode(@payload[:counts]) %></p>
               </article>
             </div>
@@ -101,30 +117,30 @@ defmodule SymphonyElixirWeb.DashboardLive do
             <div class="status-stack">
               <span class="status-badge status-badge-live">
                 <span class="status-badge-dot"></span>
-                Live
+                En direct
               </span>
               <span class="status-badge status-badge-offline">
                 <span class="status-badge-dot"></span>
-                Offline
+                Hors ligne
               </span>
             </div>
 
             <div class="hero-actions">
-              <a class="action-chip" href="/api/v1/state">State API</a>
-              <a class="action-chip action-chip-muted" href="/api/v1/config/agent">Agent API</a>
+              <a class="action-chip" href="/api/v1/state">API d'état</a>
+              <a class="action-chip action-chip-muted" href="/api/v1/config/agent">API des agents</a>
               <a
                 :if={primary_running_issue_identifier(@payload[:running] || [])}
                 class="action-chip action-chip-muted"
                 href={issue_json_path(primary_running_issue_identifier(@payload[:running] || []))}
               >
-                Focus issue JSON
+                JSON de l'issue
               </a>
             </div>
 
             <div class="agent-panel">
               <div class="agent-panel-header">
                 <div>
-                  <p class="hero-meta-label">Active agent</p>
+                  <p class="hero-meta-label">Agent actif</p>
                   <p class="agent-panel-value"><%= @payload.agent.current.label %></p>
                 </div>
 
@@ -138,14 +154,14 @@ defmodule SymphonyElixirWeb.DashboardLive do
               </p>
 
               <form class="agent-switcher" phx-change="switch_agent">
-                <label class="agent-switcher-label" for="agent-preset">Next agents</label>
+                <label class="agent-switcher-label" for="agent-preset">Agent suivant</label>
 
                 <div class="agent-switcher-row">
                   <select
                     id="agent-preset"
                     name="agent[preset_id]"
                     class="agent-select"
-                    aria-label="Select agent preset"
+                    aria-label="Sélectionner un profil d'agent"
                   >
                     <option
                       :for={preset <- agent_presets(@payload)}
@@ -180,15 +196,15 @@ defmodule SymphonyElixirWeb.DashboardLive do
           <div class="section-header">
             <div>
               <h2 class="error-title">
-                Snapshot unavailable
+                Instantané indisponible
               </h2>
               <p class="section-copy">
-                The presenter could not build a fresh payload for the dashboard.
+                Impossible de générer un nouvel instantané pour le tableau de bord.
               </p>
             </div>
 
             <a class="action-chip action-chip-muted" href="/api/v1/state">
-              Inspect API state
+              Inspecter l'état de l'API
             </a>
           </div>
 
@@ -200,27 +216,27 @@ defmodule SymphonyElixirWeb.DashboardLive do
         <% rate_cards = rate_limit_cards(@payload.rate_limits) %>
         <section class="metric-grid">
           <article class="metric-card">
-            <p class="metric-label">Running</p>
+            <p class="metric-label">Actives</p>
             <p class="metric-value numeric"><%= @payload.counts.running %></p>
-            <p class="metric-detail">Active issue sessions in the current runtime.</p>
+            <p class="metric-detail">Sessions d'issue actives dans l'environnement d'exécution courant.</p>
           </article>
 
           <article class="metric-card">
-            <p class="metric-label">Retrying</p>
+            <p class="metric-label">Relances</p>
             <p class="metric-value numeric"><%= @payload.counts.retrying %></p>
-            <p class="metric-detail">Issues waiting for the next retry window.</p>
+            <p class="metric-detail">Issues en attente de la prochaine fenêtre de relance.</p>
           </article>
 
           <article class="metric-card">
-            <p class="metric-label">Total tokens</p>
+            <p class="metric-label">Jetons totaux</p>
             <p class="metric-value numeric"><%= format_int(@payload.codex_totals.total_tokens) %></p>
             <p class="metric-detail numeric">
-              In <%= format_int(@payload.codex_totals.input_tokens) %> / Out <%= format_int(@payload.codex_totals.output_tokens) %>
+              Entrée <%= format_int(@payload.codex_totals.input_tokens) %> / Sortie <%= format_int(@payload.codex_totals.output_tokens) %>
             </p>
           </article>
 
           <article class="metric-card">
-            <p class="metric-label">Runtime</p>
+            <p class="metric-label">Durée d'exécution</p>
             <p class="metric-value numeric"><%= format_runtime_seconds(total_runtime_seconds(@payload, @now)) %></p>
             <p class="metric-detail"><%= tracked_issue_copy(@payload.counts) %></p>
           </article>
@@ -230,17 +246,17 @@ defmodule SymphonyElixirWeb.DashboardLive do
           <section class="section-card section-card-primary">
             <div class="section-header">
               <div>
-                <h2 class="section-title">Running sessions</h2>
-                <p class="section-copy">Active issues, last known agent activity, and token usage.</p>
+                <h2 class="section-title">Sessions actives</h2>
+                <p class="section-copy">Issues actives, dernière activité agent connue et usage des jetons.</p>
               </div>
 
               <span class="section-chip">
-                <%= tracked_issue_count(@payload.counts) %> tracked
+                <%= tracked_issue_count(@payload.counts) %> suivies
               </span>
             </div>
 
             <%= if @payload.running == [] do %>
-              <p class="empty-state">No active sessions.</p>
+              <p class="empty-state">Aucune session active.</p>
             <% else %>
               <div class="table-wrap">
                 <table class="data-table data-table-running">
@@ -255,11 +271,11 @@ defmodule SymphonyElixirWeb.DashboardLive do
                   <thead>
                     <tr>
                       <th>Issue</th>
-                      <th>State</th>
+                      <th>État</th>
                       <th>Session</th>
-                      <th>Runtime / turns</th>
-                      <th>Codex update</th>
-                      <th>Tokens</th>
+                      <th>Durée / tours</th>
+                      <th>Mise à jour Codex</th>
+                      <th>Jetons</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -267,12 +283,12 @@ defmodule SymphonyElixirWeb.DashboardLive do
                       <td>
                         <div class="issue-stack">
                           <span class="issue-id"><%= entry.issue_identifier %></span>
-                          <a class="issue-link" href={issue_json_path(entry.issue_identifier)}>JSON details</a>
+                          <a class="issue-link" href={issue_json_path(entry.issue_identifier)}>Détails JSON</a>
                         </div>
                       </td>
                       <td>
                         <span class={state_badge_class(entry.state)}>
-                          <%= entry.state %>
+                          <%= state_badge_label(entry.state) %>
                         </span>
                       </td>
                       <td>
@@ -281,14 +297,14 @@ defmodule SymphonyElixirWeb.DashboardLive do
                             <button
                               type="button"
                               class="subtle-button"
-                              data-label="Copy ID"
+                              data-label="Copier l'ID"
                               data-copy={entry.session_id}
-                              onclick="navigator.clipboard.writeText(this.dataset.copy); this.textContent = 'Copied'; clearTimeout(this._copyTimer); this._copyTimer = setTimeout(() => { this.textContent = this.dataset.label }, 1200);"
+                              onclick="navigator.clipboard.writeText(this.dataset.copy); this.textContent = 'Copié'; clearTimeout(this._copyTimer); this._copyTimer = setTimeout(() => { this.textContent = this.dataset.label }, 1200);"
                             >
-                              Copy ID
+                              Copier l'ID
                             </button>
                           <% else %>
-                            <span class="muted">n/a</span>
+                            <span class="muted">n/d</span>
                           <% end %>
                         </div>
                       </td>
@@ -297,10 +313,10 @@ defmodule SymphonyElixirWeb.DashboardLive do
                         <div class="detail-stack">
                           <span
                             class="event-text"
-                            title={entry.last_message || to_string(entry.last_event || "n/a")}
-                          ><%= entry.last_message || to_string(entry.last_event || "n/a") %></span>
+                            title={entry.last_message || to_string(entry.last_event || "n/d")}
+                          ><%= entry.last_message || to_string(entry.last_event || "n/d") %></span>
                           <span class="muted event-meta">
-                            <%= entry.last_event || "n/a" %>
+                            <%= entry.last_event || "n/d" %>
                             <%= if entry.last_event_at do %>
                               · <span class="mono numeric"><%= entry.last_event_at %></span>
                             <% end %>
@@ -310,7 +326,7 @@ defmodule SymphonyElixirWeb.DashboardLive do
                       <td>
                         <div class="token-stack numeric">
                           <span>Total: <%= format_int(entry.tokens.total_tokens) %></span>
-                          <span class="muted">In <%= format_int(entry.tokens.input_tokens) %> / Out <%= format_int(entry.tokens.output_tokens) %></span>
+                          <span class="muted">Entrée <%= format_int(entry.tokens.input_tokens) %> / Sortie <%= format_int(entry.tokens.output_tokens) %></span>
                         </div>
                       </td>
                     </tr>
@@ -324,8 +340,8 @@ defmodule SymphonyElixirWeb.DashboardLive do
             <section class="section-card">
               <div class="section-header">
                 <div>
-                  <h2 class="section-title">Runtime notes</h2>
-                  <p class="section-copy">A quick read on the current orchestration posture.</p>
+                  <h2 class="section-title">Notes d'exécution</h2>
+                  <p class="section-copy">Lecture rapide de la posture d'orchestration actuelle.</p>
                 </div>
               </div>
 
@@ -341,8 +357,8 @@ defmodule SymphonyElixirWeb.DashboardLive do
             <section class="section-card">
               <div class="section-header">
                 <div>
-                  <h2 class="section-title">Rate limits</h2>
-                  <p class="section-copy">Latest upstream allowance snapshot, summarized into cards.</p>
+                  <h2 class="section-title">Limites de débit</h2>
+                  <p class="section-copy">Dernier instantané des quotas amont, résumé sous forme de cartes.</p>
                 </div>
 
                 <span :if={rate_limit_profile(@payload.rate_limits)} class="section-chip">
@@ -351,7 +367,7 @@ defmodule SymphonyElixirWeb.DashboardLive do
               </div>
 
               <%= if rate_cards == [] do %>
-                <p class="empty-state">No rate-limit data available yet.</p>
+                <p class="empty-state">Aucune donnée de limite de débit disponible pour le moment.</p>
               <% else %>
                 <div class="rate-grid">
                   <article :for={card <- rate_cards} class={["rate-card", "rate-card-#{card.tone}"]}>
@@ -370,39 +386,39 @@ defmodule SymphonyElixirWeb.DashboardLive do
         <section class="section-card">
           <div class="section-header">
             <div>
-              <h2 class="section-title">Retry queue</h2>
-              <p class="section-copy">Issues waiting for the next retry window.</p>
+              <h2 class="section-title">File de relance</h2>
+              <p class="section-copy">Issues en attente de la prochaine fenêtre de relance.</p>
             </div>
 
             <span class="section-chip section-chip-warning">
-              <%= @payload.counts.retrying %> queued
+              <%= @payload.counts.retrying %> en attente
             </span>
           </div>
 
           <%= if @payload.retrying == [] do %>
-            <p class="empty-state">No issues are currently backing off.</p>
+            <p class="empty-state">Aucune issue n'est actuellement en temporisation.</p>
           <% else %>
             <div class="retry-grid">
               <article :for={entry <- @payload.retrying} class="retry-card">
                 <div class="retry-card-header">
                   <div class="issue-stack">
                     <span class="issue-id"><%= entry.issue_identifier %></span>
-                    <a class="issue-link" href={issue_json_path(entry.issue_identifier)}>JSON details</a>
+                    <a class="issue-link" href={issue_json_path(entry.issue_identifier)}>Détails JSON</a>
                   </div>
 
                   <span class="state-badge state-badge-warning">
-                    Attempt <%= entry.attempt %>
+                    Tentative <%= entry.attempt %>
                   </span>
                 </div>
 
                 <dl class="retry-meta">
                   <div>
-                    <dt>Due at</dt>
-                    <dd class="mono"><%= entry.due_at || "n/a" %></dd>
+                    <dt>Prévue à</dt>
+                    <dd class="mono"><%= entry.due_at || "n/d" %></dd>
                   </div>
                   <div>
-                    <dt>Last error</dt>
-                    <dd><%= entry.error || "n/a" %></dd>
+                    <dt>Dernière erreur</dt>
+                    <dd><%= entry.error || "n/d" %></dd>
                   </div>
                 </dl>
               </article>
@@ -427,11 +443,11 @@ defmodule SymphonyElixirWeb.DashboardLive do
     end
   end
 
-  defp flash_label(:error), do: "Switch failed"
-  defp flash_label(_kind), do: "Agent updated"
+  defp flash_label(:error), do: "Changement échoué"
+  defp flash_label(_kind), do: "Agent mis à jour"
 
   defp active_agent_copy(agent) do
-    "#{agent.source_label}. Changes only apply to agents launched after this switch."
+    "#{agent.source_label}. Les changements ne s'appliquent qu'aux agents lancés après ce basculement."
   end
 
   defp agent_presets(%{agent: %{presets: presets}}) when is_list(presets), do: presets
@@ -443,7 +459,7 @@ defmodule SymphonyElixirWeb.DashboardLive do
     if preset.available do
       base
     else
-      "#{base} (unavailable)"
+      "#{base} (indisponible)"
     end
   end
 
@@ -456,18 +472,18 @@ defmodule SymphonyElixirWeb.DashboardLive do
   defp claude_bridge_badge_class(_status),
     do: "availability-badge availability-badge-blocked"
 
-  defp claude_bridge_badge_label(%{available: true}), do: "Claude bridge ready"
-  defp claude_bridge_badge_label(_status), do: "Claude bridge blocked"
+  defp claude_bridge_badge_label(%{available: true}), do: "Passerelle Claude prête"
+  defp claude_bridge_badge_label(_status), do: "Passerelle Claude bloquée"
 
   defp claude_bridge_copy(%{available: true}) do
-    "Claude Code is installed and authenticated. Disabled presets stay off until their runtime requirements are satisfied."
+    "Claude Code est installé et authentifié. Les profils désactivés restent inactifs tant que leurs prérequis d'exécution ne sont pas satisfaits."
   end
 
   defp claude_bridge_copy(%{reason: reason}) when is_binary(reason), do: reason
-  defp claude_bridge_copy(_status), do: "Claude bridge status unavailable."
+  defp claude_bridge_copy(_status), do: "Statut de la passerelle Claude indisponible."
 
   defp switch_success_message(current) do
-    "Switched to #{current.provider_label} - next agents will use #{current.model_label}."
+    "Basculé vers #{current.provider_label} : les prochains agents utiliseront #{current.model_label}."
   end
 
   defp orchestrator do
@@ -524,47 +540,47 @@ defmodule SymphonyElixirWeb.DashboardLive do
     |> String.reverse()
   end
 
-  defp format_int(_value), do: "n/a"
+  defp format_int(_value), do: "n/d"
 
   defp format_number(value) when is_integer(value), do: format_int(value)
   defp format_number(value) when is_float(value), do: :erlang.float_to_binary(value, decimals: 1)
   defp format_number(value) when is_binary(value), do: value
-  defp format_number(_value), do: "n/a"
+  defp format_number(_value), do: "n/d"
 
   defp dashboard_mode(%{running: running, retrying: retrying}) do
     cond do
-      retrying > 0 and running > 0 -> "Stabilizing"
-      retrying > 0 -> "Recovering"
-      running > 0 -> "Live"
-      true -> "Idle"
+      retrying > 0 and running > 0 -> "Stabilisation"
+      retrying > 0 -> "Récupération"
+      running > 0 -> "En direct"
+      true -> "Au repos"
     end
   end
 
-  defp dashboard_mode(_counts), do: "Unknown"
+  defp dashboard_mode(_counts), do: "Inconnu"
 
   defp dashboard_mode_copy(%{running: running, retrying: retrying}) do
     cond do
       running == 0 and retrying == 0 ->
-        "No active sessions are running yet. The dashboard is ready to track the next orchestration run."
+        "Aucune session active pour le moment. Le tableau de bord est prêt à suivre la prochaine orchestration."
 
       retrying == 0 ->
-        "#{pluralize(running, "session", "sessions")} currently streaming without queued retries."
+        "#{pluralize(running, "session active", "sessions actives")} en cours sans relance en attente."
 
       running == 0 ->
-        "#{pluralize(retrying, "issue", "issues")} waiting in backoff; no live sessions are active right now."
+        "#{pluralize(retrying, "issue en temporisation", "issues en temporisation")} ; aucune session en direct n'est active pour l'instant."
 
       true ->
-        "#{pluralize(running, "session", "sessions")} active with #{pluralize(retrying, "issue", "issues")} queued for retry."
+        "#{pluralize(running, "session active", "sessions actives")} avec #{pluralize(retrying, "issue en attente de relance", "issues en attente de relance")}."
     end
   end
 
-  defp dashboard_mode_copy(_counts), do: "Dashboard state unavailable."
+  defp dashboard_mode_copy(_counts), do: "État du tableau de bord indisponible."
 
   defp tracked_issue_count(%{running: running, retrying: retrying}), do: running + retrying
   defp tracked_issue_count(_counts), do: 0
 
   defp tracked_issue_copy(counts) do
-    "#{pluralize(tracked_issue_count(counts), "tracked issue", "tracked issues")} across running and retry queues."
+    "#{pluralize(tracked_issue_count(counts), "issue suivie", "issues suivies")} entre les sessions actives et la file de relance."
   end
 
   defp insight_items(payload) do
@@ -575,37 +591,37 @@ defmodule SymphonyElixirWeb.DashboardLive do
 
     [
       %{
-        label: "Queue pressure",
+        label: "Pression de la file",
         value: queue_pressure_label(running, retrying),
-        copy: "#{pluralize(retrying, "retry", "retries")} waiting while #{pluralize(running, "session", "sessions")} are active."
+        copy: "#{pluralize(retrying, "relance", "relances")} en attente pendant que #{pluralize(running, "session active", "sessions actives")} restent en cours."
       },
       %{
-        label: "Tracked issues",
+        label: "Issues suivies",
         value: tracked_issue_count(counts),
-        copy: "Visible running sessions plus queued retries in this snapshot."
+        copy: "Sessions actives visibles et relances en attente dans cet instantané."
       },
       %{
-        label: "Token split",
+        label: "Répartition des jetons",
         value: "#{format_int(Map.get(totals, :input_tokens))} / #{format_int(Map.get(totals, :output_tokens))}",
-        copy: "Input / output tokens accumulated so far."
+        copy: "Jetons d'entrée et de sortie accumulés jusqu'ici."
       },
       %{
-        label: "Allowance profile",
-        value: rate_limit_profile(Map.get(payload, :rate_limits)) || "Unavailable",
+        label: "Profil de quota",
+        value: rate_limit_profile(Map.get(payload, :rate_limits)) || "Indisponible",
         copy: rate_limit_copy(Map.get(payload, :rate_limits))
       }
     ]
   end
 
-  defp queue_pressure_label(_running, retrying) when retrying >= 3, do: "High"
-  defp queue_pressure_label(_running, retrying) when retrying > 0, do: "Watching"
+  defp queue_pressure_label(_running, retrying) when retrying >= 3, do: "Élevée"
+  defp queue_pressure_label(_running, retrying) when retrying > 0, do: "Surveillance"
   defp queue_pressure_label(running, 0) when running > 0, do: "Stable"
-  defp queue_pressure_label(_running, _retrying), do: "Idle"
+  defp queue_pressure_label(_running, _retrying), do: "Au repos"
 
   defp rate_limit_cards(rate_limits) when is_map(rate_limits) do
     [
-      build_limit_card("Primary window", lookup_path(rate_limits, [[:primary, "primary"]])),
-      build_limit_card("Secondary window", lookup_path(rate_limits, [[:secondary, "secondary"]])),
+      build_limit_card("Fenêtre principale", lookup_path(rate_limits, [[:primary, "primary"]])),
+      build_limit_card("Fenêtre secondaire", lookup_path(rate_limits, [[:secondary, "secondary"]])),
       build_credits_card(lookup_path(rate_limits, [[:credits, "credits"]]))
     ]
     |> Enum.reject(&is_nil/1)
@@ -624,13 +640,13 @@ defmodule SymphonyElixirWeb.DashboardLive do
       cond do
         is_number(remaining) and is_number(limit) -> "#{format_number(remaining)} / #{format_number(limit)}"
         not is_nil(remaining) -> format_number(remaining)
-        true -> "n/a"
+        true -> "n/d"
       end
 
     meta =
       [
-        if(is_number(limit), do: "limit #{format_number(limit)}"),
-        if(is_number(reset_seconds), do: "resets in #{reset_seconds}s")
+        if(is_number(limit), do: "limite #{format_number(limit)}"),
+        if(is_number(reset_seconds), do: "réinitialisation dans #{reset_seconds}s")
       ]
       |> Enum.reject(&is_nil/1)
       |> Enum.join(" / ")
@@ -638,7 +654,7 @@ defmodule SymphonyElixirWeb.DashboardLive do
     %{
       label: label,
       value: value,
-      meta: if(meta == "", do: "Allowance snapshot available.", else: meta),
+      meta: if(meta == "", do: "Instantané de quota disponible.", else: meta),
       tone: rate_limit_tone(remaining, limit)
     }
   end
@@ -653,19 +669,19 @@ defmodule SymphonyElixirWeb.DashboardLive do
     {value, meta, tone} =
       cond do
         unlimited ->
-          {"Unlimited", "No fixed credit ceiling reported.", "positive"}
+          {"Illimités", "Aucun plafond de crédits fixe n'est signalé.", "positive"}
 
         has_credits and not is_nil(balance) ->
-          {format_number(balance), "Credits balance remaining.", "positive"}
+          {format_number(balance), "Solde de crédits restant.", "positive"}
 
         has_credits ->
-          {"Available", "Upstream reports credits available.", "positive"}
+          {"Disponibles", "L'amont signale des crédits disponibles.", "positive"}
 
         true ->
-          {"Depleted", "No credits available or not reported.", "danger"}
+          {"Épuisés", "Aucun crédit disponible ou non signalé.", "danger"}
       end
 
-    %{label: "Credits", value: value, meta: meta, tone: tone}
+    %{label: "Crédits", value: value, meta: meta, tone: tone}
   end
 
   defp rate_limit_tone(0, _limit), do: "danger"
@@ -679,7 +695,7 @@ defmodule SymphonyElixirWeb.DashboardLive do
 
   defp rate_limit_profile(rate_limits) when is_map(rate_limits) do
     lookup_path(rate_limits, [[:limit_id, "limit_id"]]) ||
-      if(rate_limit_cards(rate_limits) == [], do: nil, else: "Allowance snapshot")
+      if(rate_limit_cards(rate_limits) == [], do: nil, else: "Instantané de quota")
   end
 
   defp rate_limit_profile(_rate_limits), do: nil
@@ -687,17 +703,17 @@ defmodule SymphonyElixirWeb.DashboardLive do
   defp rate_limit_copy(rate_limits) when is_map(rate_limits) do
     cond do
       truthy?(lookup_path(rate_limits, [[:credits, "credits"], [:unlimited, "unlimited"]])) ->
-        "Credits are reported as unlimited for this runtime."
+        "Les crédits sont annoncés comme illimités pour ce runtime."
 
       match?(%{}, lookup_path(rate_limits, [[:primary, "primary"]])) ->
-        "Primary and secondary allowance windows are being tracked."
+        "Les fenêtres de quota principale et secondaire sont suivies."
 
       true ->
-        "Allowance details are partial but still surfaced in the raw payload."
+        "Les détails de quota sont partiels mais restent exposés dans la charge utile brute."
     end
   end
 
-  defp rate_limit_copy(_rate_limits), do: "Allowance data has not been reported yet."
+  defp rate_limit_copy(_rate_limits), do: "Aucune donnée de quota n'a encore été signalée."
 
   defp lookup_path(map, []), do: map
 
@@ -744,10 +760,24 @@ defmodule SymphonyElixirWeb.DashboardLive do
     end
   end
 
+  defp state_badge_label(state) when is_binary(state) do
+    normalized =
+      state
+      |> String.replace(~r/([a-z0-9])([A-Z])/, "\\1 \\2")
+      |> String.replace("_", " ")
+      |> String.downcase()
+      |> String.trim()
+
+    Map.get(@translated_state_badges, normalized, if(normalized == "", do: "Inconnu", else: String.capitalize(normalized)))
+  end
+
+  defp state_badge_label(nil), do: "Inconnu"
+  defp state_badge_label(state), do: state |> to_string() |> state_badge_label()
+
   defp schedule_runtime_tick do
     Process.send_after(self(), :runtime_tick, @runtime_tick_ms)
   end
 
-  defp pretty_value(nil), do: "n/a"
+  defp pretty_value(nil), do: "n/d"
   defp pretty_value(value), do: inspect(value, pretty: true, limit: :infinity)
 end
