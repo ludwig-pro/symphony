@@ -205,22 +205,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if ! flyctl apps show "${{ steps.meta.outputs.app_name }}" >/dev/null 2>&1; then
-            flyctl apps create "${{ steps.meta.outputs.app_name }}" --machines --org "${FLY_ORG}"
-          fi
+          .github/scripts/ensure-preview-fly-app.sh "${{ steps.meta.outputs.app_name }}" "${FLY_ORG}"
 
       - name: Deploy preview app
         if: steps.meta.outputs.deploy_enabled == 'true'
         shell: bash
         run: |
           set -euo pipefail
-          flyctl deploy \
-            --app "${{ steps.meta.outputs.app_name }}" \
-            --config .fly/preview.toml \
-            --dockerfile Dockerfile.preview \
-            --ha=false \
-            --remote-only \
-            --strategy immediate
+          .github/scripts/deploy-preview-fly-app.sh "${{ steps.meta.outputs.app_name }}" .fly/preview.toml Dockerfile.preview
 
       - name: Smoke check dashboard and state API
         if: steps.meta.outputs.deploy_enabled == 'true'

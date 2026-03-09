@@ -98,5 +98,6 @@ These commands are useful before pushing preview workflow changes:
 ```bash
 .github/scripts/preview-fly-app-name.sh symphony 123
 .github/scripts/render-preview-fly-toml.sh symphony-pr-123 iad
+.github/scripts/test-preview-fly-app-scripts.sh
 cd elixir && make fmt-check test
 ```
