@@ -631,7 +631,7 @@ defmodule SymphonyElixir.StatusDashboard do
 
   @doc false
   @spec format_running_summary_for_test(map(), integer() | nil) :: String.t()
-  def format_running_summary_for_test(running_entry, terminal_columns \\ nil),
+  def format_running_summary_for_test(running_entry, terminal_columns \\ @default_terminal_columns),
     do: format_running_summary(running_entry, running_event_width(terminal_columns))
 
   @doc false
