@@ -50,31 +50,30 @@ increment_counter() {
 flyctl() {
   local command="${1:-}"
   local subcommand="${2:-}"
-  local show_calls
   local attempts
 
   case "${TEST_MODE:?}:${command}:${subcommand}" in
-    ensure:apps:show)
-      increment_counter ensure_show_calls
-
-      if [[ -e "${TEST_STATE_DIR}/app_exists" ]]; then
-        if [[ "${TEST_SCENARIO:?}" == "create-then-visible" && -e "${TEST_STATE_DIR}/app_created" ]]; then
-          show_calls="$(cat "${TEST_STATE_DIR}/ensure_show_calls")"
-          if (( show_calls < 4 )); then
-            return 1
-          fi
-        fi
-
-        return 0
-      fi
-
-      return 1
-      ;;
     ensure:apps:create)
       increment_counter ensure_create_calls
-      touch "${TEST_STATE_DIR}/app_exists" "${TEST_STATE_DIR}/app_created"
-      echo "created app"
-      return 0
+      case "${TEST_SCENARIO:?}" in
+        create-success)
+          touch "${TEST_STATE_DIR}/app_created"
+          echo "created app"
+          return 0
+          ;;
+        already-exists)
+          echo "Error: app already exists" >&2
+          return 1
+          ;;
+        create-failure)
+          echo "Error: unauthorized" >&2
+          return 1
+          ;;
+        *)
+          echo "unknown ensure scenario: ${TEST_SCENARIO}" >&2
+          return 1
+          ;;
+      esac
       ;;
     deploy:deploy:--app)
       increment_counter deploy_attempts
@@ -111,9 +110,9 @@ export -f flyctl
 
 run_ensure_scenario() {
   local scenario="$1"
-  local initial_app_state="$2"
-  local expected_status="$3"
-  local expected_create_calls="$4"
+  local expected_status="$2"
+  local expected_create_calls="$3"
+  local created_expected="$4"
 
   local temp_dir
   local state_dir
@@ -124,16 +123,10 @@ run_ensure_scenario() {
   state_dir="${temp_dir}/state"
   mkdir -p "${state_dir}"
 
-  if [[ "${initial_app_state}" == "present" ]]; then
-    touch "${state_dir}/app_exists"
-  fi
-
   set +e
   TEST_MODE=ensure \
   TEST_SCENARIO="${scenario}" \
   TEST_STATE_DIR="${state_dir}" \
-  FLY_APP_READY_MAX_ATTEMPTS=4 \
-  FLY_APP_READY_RETRY_DELAY_SECONDS=0 \
   bash "${ensure_script}" symphony-pr-6 personal > /dev/null 2>&1
   status=$?
   set -e
@@ -143,8 +136,10 @@ run_ensure_scenario() {
   assert_eq "${expected_status}" "${status}" "ensure ${scenario} exit status"
   assert_eq "${expected_create_calls}" "${create_calls}" "ensure ${scenario} create count"
 
-  if [[ "${expected_status}" == "0" ]]; then
-    assert_exists "${state_dir}/app_exists" "ensure ${scenario} should leave the app visible"
+  if [[ "${created_expected}" == "created" ]]; then
+    assert_exists "${state_dir}/app_created" "ensure ${scenario} should create the app"
+  else
+    assert_missing "${state_dir}/app_created" "ensure ${scenario} should not create the app"
   fi
 
   rm -rf "${temp_dir}"
@@ -182,8 +177,9 @@ run_deploy_scenario() {
   rm -rf "${temp_dir}"
 }
 
-run_ensure_scenario already-exists present 0 0
-run_ensure_scenario create-then-visible absent 0 1
+run_ensure_scenario create-success 0 1 created
+run_ensure_scenario already-exists 0 1 missing
+run_ensure_scenario create-failure 1 1 missing
 run_deploy_scenario eventual-consistency 0 3
 run_deploy_scenario non-retriable 1 1
 
