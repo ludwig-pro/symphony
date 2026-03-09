@@ -255,19 +255,27 @@ Use this only when completion is blocked by missing required tools or missing au
 3. Check cycle count (max 5):
    - Count existing PR reviews/comments whose body includes `## Symphony AI Review`.
    - If the count is `>= 5`, add a short workpad note that the max AI review cycle limit was reached, move the issue to `Human Review`, and end the turn.
-4. Gather review context:
+4. Check for an existing GitHub Actions review:
+   - Fetch PR comments and reviews containing `## Symphony AI Review` AND `### Verdict`.
+   - Parse the latest one for `APPROVE` or `REQUEST_CHANGES`.
+5. If an existing review is found:
+   - Use the parsed verdict to route directly (skip to step 9).
+6. If no existing review is found:
+   - Check if the GitHub Action is currently running: `gh run list --workflow="AI Code Review" --branch=<branch> --status=in_progress --json databaseId --jq 'length'`.
+   - If running (count > 0) → add a workpad note "Waiting for GitHub Actions review" and end the turn. The next dispatch will re-enter this step and pick up the completed review.
+   - If not running → perform the full review as a fallback (continue to steps 7-8).
+7. Gather review context (fallback self-review):
    - Re-read the full ticket description from Linear (`{{ issue.description }}`) and the current workpad acceptance criteria/validation notes.
    - Fetch PR info: `gh pr view <pr_number> --json title,body,files,reviews,headRefOid`.
    - Fetch the PR diff: `gh pr diff <pr_number>`.
    - For large diffs, start with `gh pr diff <pr_number> --name-only` and then selectively read the most relevant files.
-5. Review the implementation against these dimensions:
+8. Review the implementation against these dimensions and post the review:
    - Correctness: does the code satisfy the ticket requirements and handle obvious edge cases?
    - Architecture & Patterns: does it follow existing patterns and keep the structure clean?
    - Testing: are the tests adequate and do they cover the acceptance criteria?
    - Security: any OWASP-style concerns, auth gaps, or input validation issues?
    - Performance: any avoidable blocking work, unnecessary allocations, or query inefficiencies?
    - Ticket Alignment: does the implementation match the ticket description and acceptance criteria?
-6. Post the review:
    - Use this exact review body format:
 
      ````md
@@ -314,10 +322,10 @@ Use this only when completion is blocked by missing required tools or missing au
    - Use `[x]` for a passed ticket-alignment item and `[ ]` for a failed item.
    - If issues are found, post inline comments on the relevant lines via `gh api repos/{owner}/{repo}/pulls/{pr_number}/comments --method POST -f body="Issue description" -f commit_id="<headRefOid>" -f path="src/file.ex" -F line=42 -f side="RIGHT"`, then submit the summary verdict with `gh pr review <pr_number> --request-changes --body "<review summary>"`
    - If the PR is clean, approve it with `gh pr review <pr_number> --approve --body "<review summary>"`
-7. Route based on outcome:
+9. Route based on outcome:
    - Issues found -> move the issue to `In Progress` so the implementation agent can address the feedback on the next dispatch.
    - No blocking issues -> move the issue to `Human Review`.
-8. Exit after posting the review and moving state. Do not loop inside the same turn.
+10. Exit after posting the review and moving state. Do not loop inside the same turn.
 
 ## Step 4: Human Review and merge handling
 
