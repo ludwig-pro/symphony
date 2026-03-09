@@ -25,6 +25,17 @@ const toolSpec = {
 
 let buffer = Buffer.alloc(0);
 let transportMode = null;
+let stdoutClosed = false;
+
+process.stdout.on("error", (error) => {
+  if (shouldIgnoreWriteError(error)) {
+    stdoutClosed = true;
+    process.exit(0);
+  }
+
+  process.stderr.write(`${formatError(error)}\n`);
+  process.exit(1);
+});
 
 process.stdin.on("data", (chunk) => {
   buffer = Buffer.concat([buffer, chunk]);
@@ -301,16 +312,29 @@ function writeError(id, code, message) {
 }
 
 function writeMessage(payload) {
-  const body = JSON.stringify(payload);
-
-  if (transportMode === "jsonl") {
-    process.stdout.write(`${body}\n`);
+  if (stdoutClosed) {
     return;
   }
 
-  const header = `Content-Length: ${Buffer.byteLength(body, "utf8")}\r\n\r\n`;
-  process.stdout.write(header);
-  process.stdout.write(body);
+  const body = JSON.stringify(payload);
+
+  try {
+    if (transportMode === "jsonl") {
+      process.stdout.write(`${body}\n`);
+      return;
+    }
+
+    const header = `Content-Length: ${Buffer.byteLength(body, "utf8")}\r\n\r\n`;
+    process.stdout.write(header);
+    process.stdout.write(body);
+  } catch (error) {
+    if (shouldIgnoreWriteError(error)) {
+      stdoutClosed = true;
+      return;
+    }
+
+    throw error;
+  }
 }
 
 function normalizeEnvString(value) {
@@ -328,4 +352,8 @@ function formatError(error) {
   }
 
   return String(error);
+}
+
+function shouldIgnoreWriteError(error) {
+  return error?.code === "EPIPE" || error?.code === "ERR_STREAM_DESTROYED";
 }
