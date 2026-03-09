@@ -1,0 +1,12 @@
+.git
+.codex
+.DS_Store
+**/_build
+**/deps
+**/log
+**/tmp
+**/node_modules
+**/.elixir_ls
+**/.mix
+**/coverage
+**/.coverage

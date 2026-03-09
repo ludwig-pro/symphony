@@ -275,6 +275,23 @@ defmodule SymphonyElixir.Config do
 
   @spec codex_command() :: String.t()
   def codex_command do
+    case Application.get_env(:symphony_elixir, :codex_command_override) do
+      override when is_binary(override) ->
+        trimmed = String.trim(override)
+
+        if trimmed == "" do
+          workflow_codex_command()
+        else
+          trimmed
+        end
+
+      _ ->
+        workflow_codex_command()
+    end
+  end
+
+  @spec workflow_codex_command() :: String.t()
+  def workflow_codex_command do
     get_in(validated_workflow_options(), [:codex, :command])
   end
 

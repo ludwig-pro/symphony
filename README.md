@@ -36,7 +36,8 @@ help with the setup:
 
 The Elixir reference implementation can launch Codex directly or Claude Code through the bundled
 Node bridge documented in [elixir/README.md](elixir/README.md), backed by Anthropic's current
-Claude Agent SDK.
+Claude Agent SDK. Pull request preview deployment setup for the Phoenix dashboard lives in
+[elixir/docs/preview-deployments.md](elixir/docs/preview-deployments.md).
 
 ---
 
