@@ -199,6 +199,13 @@ The observability UI now runs on a minimal Phoenix stack:
 - Bandit as the HTTP server
 - Phoenix dependency static assets for the LiveView client bootstrap
 
+## Pull request previews
+
+Hosted preview deployments for pull requests are documented in
+[`docs/preview-deployments.md`](docs/preview-deployments.md). The preview path
+deploys the Phoenix dashboard and `/api/v1/state` to a per-PR Fly app and
+posts the URL back into the pull request review flow.
+
 ## Project Layout
 
 - `lib/`: application code and Mix tasks
