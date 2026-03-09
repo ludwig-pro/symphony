@@ -48,13 +48,13 @@ defmodule SymphonyElixir.AgentConfigTest do
         code: "claude_auth_missing",
         installed: true,
         node_available: true,
-        reason: "Claude Code is installed but not authenticated."
+        reason: "Claude Code est installé mais n'est pas authentifié."
       }
     end)
 
     initial_command = Config.codex_command()
 
-    assert {:error, {:preset_unavailable, "Claude Code is installed but not authenticated."}} =
+    assert {:error, {:preset_unavailable, "Claude Code est installé mais n'est pas authentifié."}} =
              AgentConfig.set_preset("claude-sonnet")
 
     assert Config.codex_command() == initial_command

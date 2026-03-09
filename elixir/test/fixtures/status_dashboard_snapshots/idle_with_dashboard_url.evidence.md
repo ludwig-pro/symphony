@@ -1,21 +1,21 @@
 ```text
-╭─ SYMPHONY STATUS
-│ Agents: 0/10
-│ Throughput: 0 tps
-│ Runtime: 0m 0s
-│ Tokens: in 0 | out 0 | total 0
-│ Rate Limits: unavailable
-│ Project: https://linear.app/project/project/issues
-│ Dashboard: http://127.0.0.1:4000/
-│ Next refresh: n/a
-├─ Running
+╭─ STATUT DE SYMPHONY
+│ Agents : 0/10
+│ Débit : 0 tps
+│ Durée : 0m 0s
+│ Jetons : entrée 0 | sortie 0 | total 0
+│ Limites : indisponible
+│ Projet : https://linear.app/project/project/issues
+│ Tableau de bord : http://127.0.0.1:4000/
+│ Prochain rafraîchissement : n/d
+├─ Actifs
 │
-│   ID       STAGE          PID      AGE / TURN   TOKENS     SESSION        EVENT                                  
+│   ID       ÉTAT           PID      ÂGE / TOUR   JETONS     SESSION        ÉVÉNEMENT
 │   ───────────────────────────────────────────────────────────────────────────────────────────────────────────────
-│  No active agents
+│  Aucun agent actif
 │
-├─ Backoff queue
+├─ File de temporisation
 │
-│  No queued retries
+│  Aucune relance en attente
 ╰─
 ```

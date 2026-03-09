@@ -63,16 +63,16 @@ defmodule SymphonyElixir.CLI do
           :ok
 
         {:error, reason} ->
-          {:error, "Failed to start Symphony with workflow #{expanded_path}: #{inspect(reason)}"}
+          {:error, "Impossible de démarrer Symphony avec le workflow #{expanded_path} : #{inspect(reason)}"}
       end
     else
-      {:error, "Workflow file not found: #{expanded_path}"}
+      {:error, "Fichier de workflow introuvable : #{expanded_path}"}
     end
   end
 
   @spec usage_message() :: String.t()
   defp usage_message do
-    "Usage: symphony [--logs-root <path>] [--port <port>] [path-to-WORKFLOW.md]"
+    "Utilisation : symphony [--logs-root <path>] [--port <port>] [chemin-vers-WORKFLOW.md]"
   end
 
   @spec runtime_deps() :: deps()
@@ -113,10 +113,10 @@ defmodule SymphonyElixir.CLI do
   @spec acknowledgement_banner() :: String.t()
   defp acknowledgement_banner do
     lines = [
-      "This Symphony implementation is a low key engineering preview.",
-      "Codex will run without any guardrails.",
-      "SymphonyElixir is not a supported product and is presented as-is.",
-      "To proceed, start with `--i-understand-that-this-will-be-running-without-the-usual-guardrails` CLI argument"
+      "Cette implémentation de Symphony est un aperçu technique discret.",
+      "Codex s'exécutera sans garde-fous.",
+      "SymphonyElixir n'est pas un produit supporté et est fourni en l'état.",
+      "Pour continuer, lancez avec l'argument CLI `--i-understand-that-this-will-be-running-without-the-usual-guardrails`"
     ]
 
     width = Enum.max(Enum.map(lines, &String.length/1))
@@ -173,7 +173,7 @@ defmodule SymphonyElixir.CLI do
   defp wait_for_shutdown do
     case Process.whereis(SymphonyElixir.Supervisor) do
       nil ->
-        IO.puts(:stderr, "Symphony supervisor is not running")
+        IO.puts(:stderr, "Le superviseur Symphony n'est pas en cours d'exécution")
         System.halt(1)
 
       pid ->

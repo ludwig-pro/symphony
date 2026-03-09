@@ -55,6 +55,7 @@ defmodule SymphonyElixir.TestSupport.Snapshot do
       raw_ansi_content
       |> strip_ansi()
       |> normalize_content()
+      |> String.replace(~r/[ \t]+$/m, "")
       |> String.trim_trailing("\n")
 
     "```text\n#{plain}\n```\n"

@@ -90,11 +90,11 @@ defmodule SymphonyElixir.AgentConfig do
       provider: provider,
       provider_label: provider_label(provider),
       model: model,
-      model_label: model_label(model, "Configured in WORKFLOW.md"),
-      label: preset_label(provider, model, "Workflow default"),
+      model_label: model_label(model, "Configuré dans WORKFLOW.md"),
+      label: preset_label(provider, model, "Workflow par défaut"),
       source: "workflow",
-      source_label: "Workflow default",
-      description: "Uses the command configured in WORKFLOW.md for new agent sessions.",
+      source_label: "Workflow par défaut",
+      description: "Utilise la commande configurée dans WORKFLOW.md pour les nouvelles sessions d'agent.",
       command: command,
       available: true,
       unavailable_reason: nil
@@ -119,8 +119,8 @@ defmodule SymphonyElixir.AgentConfig do
       model_label: model,
       label: "Claude Code - #{model}",
       source: "runtime_override",
-      source_label: "Runtime override",
-      description: "#{description} via the Claude CLI bridge for future sessions.",
+      source_label: "Surcharge d'exécution",
+      description: "#{description} via la passerelle CLI Claude pour les prochaines sessions.",
       command: "SYMPHONY_CLAUDE_MODEL=#{model} #{@claude_bridge_command}",
       available: status.available,
       unavailable_reason: status.reason
@@ -247,11 +247,18 @@ defmodule SymphonyElixir.AgentConfig do
   end
 
   defp validate_claude_runtime(nil, _claude_binary) do
-    {:error, unavailable_status("node_not_found", "Node is required for the Claude CLI bridge.", false, false, false)}
+    {:error, unavailable_status("node_not_found", "Node est requis pour la passerelle CLI Claude.", false, false, false)}
   end
 
   defp validate_claude_runtime(_node_binary, nil) do
-    {:error, unavailable_status("claude_not_found", "Claude Code CLI is not installed or not on PATH.", false, false, true)}
+    {:error,
+     unavailable_status(
+       "claude_not_found",
+       "Le CLI Claude Code n'est pas installé ou n'est pas dans le PATH.",
+       false,
+       false,
+       true
+     )}
   end
 
   defp validate_claude_runtime(_node_binary, _claude_binary) do
@@ -261,7 +268,7 @@ defmodule SymphonyElixir.AgentConfig do
       {:error,
        unavailable_status(
          "claude_permission_mode_missing",
-         "Claude Code requires `codex.approval_policy: never` or `SYMPHONY_CLAUDE_PERMISSION_MODE`.",
+         "Claude Code requiert `codex.approval_policy: never` ou `SYMPHONY_CLAUDE_PERMISSION_MODE`.",
          true,
          false,
          true
@@ -277,7 +284,7 @@ defmodule SymphonyElixir.AgentConfig do
       {_output, _status} ->
         unavailable_status(
           "claude_auth_failed",
-          "Claude Code auth status failed.",
+          "La vérification d'authentification de Claude Code a échoué.",
           true,
           false,
           true
@@ -287,7 +294,7 @@ defmodule SymphonyElixir.AgentConfig do
     :exit, {:timeout, _} ->
       unavailable_status(
         "claude_auth_timeout",
-        "Claude Code auth status timed out.",
+        "La vérification d'authentification de Claude Code a expiré.",
         true,
         false,
         true
@@ -309,7 +316,7 @@ defmodule SymphonyElixir.AgentConfig do
       {:ok, %{"loggedIn" => false}} ->
         unavailable_status(
           "claude_auth_missing",
-          "Claude Code is installed but not authenticated.",
+          "Claude Code est installé mais n'est pas authentifié.",
           true,
           false,
           true
@@ -318,7 +325,7 @@ defmodule SymphonyElixir.AgentConfig do
       _ ->
         unavailable_status(
           "claude_auth_unexpected",
-          "Claude Code auth status returned an unexpected response.",
+          "La vérification d'authentification de Claude Code a renvoyé une réponse inattendue.",
           true,
           false,
           true
@@ -390,7 +397,14 @@ defmodule SymphonyElixir.AgentConfig do
   end
 
   defp normalize_probe_status(_status),
-    do: unavailable_status("probe_override_invalid", "Claude bridge probe returned an invalid payload.", false, false, false)
+    do:
+      unavailable_status(
+        "probe_override_invalid",
+        "La sonde de la passerelle Claude a renvoyé une charge utile invalide.",
+        false,
+        false,
+        false
+      )
 
   defp truthy?(value), do: value in [true, "true", 1]
 end
