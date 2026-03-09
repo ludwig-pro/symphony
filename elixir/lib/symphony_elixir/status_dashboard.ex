@@ -25,6 +25,44 @@ defmodule SymphonyElixir.StatusDashboard do
   @running_event_min_width 12
   @running_row_chrome_width 10
   @default_terminal_columns 115
+  @humanized_item_types %{
+    "agent_message" => "message d'agent",
+    "command_execution" => "exécution de commande",
+    "file_change" => "modification de fichier",
+    "plan" => "plan",
+    "reasoning" => "raisonnement",
+    "token_count" => "compteur de jetons",
+    "tool_call" => "appel d'outil",
+    "user_message" => "message utilisateur"
+  }
+  @humanized_statuses %{
+    "active" => "actif",
+    "blocked" => "bloqué",
+    "cancelled" => "annulé",
+    "canceled" => "annulé",
+    "checking" => "vérification",
+    "complete" => "terminé",
+    "completed" => "terminé",
+    "created" => "créé",
+    "done" => "terminé",
+    "error" => "erreur",
+    "failed" => "échoué",
+    "finished" => "terminé",
+    "idle" => "au repos",
+    "in progress" => "en cours",
+    "pending" => "en attente",
+    "queued" => "en attente",
+    "retrying" => "en relance",
+    "running" => "en cours",
+    "started" => "démarré",
+    "starting" => "démarrage",
+    "stopped" => "arrêté",
+    "succeeded" => "réussi",
+    "success" => "réussi",
+    "todo" => "à faire",
+    "updated" => "mis à jour",
+    "warning" => "avertissement"
+  }
 
   @ansi_reset IO.ANSI.reset()
   @ansi_bold IO.ANSI.bright()
@@ -587,8 +625,16 @@ defmodule SymphonyElixir.StatusDashboard do
   # credo:disable-for-next-line
   defp format_running_summary(running_entry, running_event_width) do
     issue = format_cell(running_entry.identifier || "inconnu", @running_id_width)
-    state = running_entry.state || "inconnu"
-    state_display = format_cell(to_string(state), @running_stage_width)
+
+    state =
+      running_entry.state
+      |> humanize_status()
+      |> case do
+        nil -> "inconnu"
+        label -> label
+      end
+
+    state_display = format_cell(state, @running_stage_width)
     session = running_entry.session_id |> compact_session_id() |> format_cell(@running_session_width)
     pid = format_cell(running_entry.codex_app_server_pid || "n/d", @running_pid_width)
     total_tokens = running_entry.codex_total_tokens || 0
@@ -1232,10 +1278,12 @@ defmodule SymphonyElixir.StatusDashboard do
   end
 
   defp humanize_codex_method("turn/completed", payload) do
-    status =
-      map_path(payload, ["params", "turn", "status"]) ||
-        map_path(payload, [:params, :turn, :status]) ||
-        "completed"
+    status_label =
+      payload
+      |> map_path(["params", "turn", "status"])
+      |> fallback_turn_status(payload)
+      |> humanize_status()
+      |> Kernel.||("terminé")
 
     usage =
       map_path(payload, ["params", "usage"]) ||
@@ -1250,7 +1298,14 @@ defmodule SymphonyElixir.StatusDashboard do
         usage_text -> " (#{usage_text})"
       end
 
-    "tour terminé (#{status})#{usage_suffix}"
+    base =
+      if status_label == "terminé" do
+        "tour terminé"
+      else
+        "tour terminé (#{status_label})"
+      end
+
+    "#{base}#{usage_suffix}"
   end
 
   defp humanize_codex_method("turn/failed", payload) do
@@ -1466,7 +1521,7 @@ defmodule SymphonyElixir.StatusDashboard do
         map_path(payload, [:params, :msg, :status, :state]) ||
         "updated"
 
-    "démarrage MCP : #{server} #{state}"
+    "démarrage MCP : #{server} #{humanize_status(state) || state}"
   end
 
   defp humanize_codex_wrapper_event("mcp_startup_complete", _payload), do: "démarrage MCP terminé"
@@ -1730,6 +1785,11 @@ defmodule SymphonyElixir.StatusDashboard do
 
   defp fallback_command(command, _payload), do: command
 
+  defp fallback_turn_status(nil, payload),
+    do: map_path(payload, [:params, :turn, :status]) || "completed"
+
+  defp fallback_turn_status(status, _payload), do: status
+
   defp normalize_command(%{} = command) do
     binary_command = map_value(command, ["parsedCmd", :parsedCmd, "command", :command, "cmd", :cmd])
     args = map_value(command, ["args", :args, "argv", :argv])
@@ -1758,22 +1818,30 @@ defmodule SymphonyElixir.StatusDashboard do
   defp humanize_item_type(nil), do: "élément"
 
   defp humanize_item_type(type) when is_binary(type) do
-    type
-    |> String.replace(~r/([a-z0-9])([A-Z])/, "\\1 \\2")
-    |> String.replace("_", " ")
-    |> String.replace("/", " ")
-    |> String.downcase()
-    |> String.trim()
+    normalized =
+      type
+      |> String.replace(~r/([a-z0-9])([A-Z])/, "\\1_\\2")
+      |> String.replace("-", "_")
+      |> String.replace("/", "_")
+      |> String.replace(" ", "_")
+      |> String.downcase()
+      |> String.trim("_")
+
+    Map.get(@humanized_item_types, normalized, normalized |> String.replace("_", " ") |> String.trim())
   end
 
   defp humanize_item_type(type), do: to_string(type)
 
   defp humanize_status(status) when is_binary(status) do
-    status
-    |> String.replace("_", " ")
-    |> String.replace("-", " ")
-    |> String.downcase()
-    |> String.trim()
+    normalized =
+      status
+      |> String.replace(~r/([a-z0-9])([A-Z])/, "\\1_\\2")
+      |> String.replace("_", " ")
+      |> String.replace("-", " ")
+      |> String.downcase()
+      |> String.trim()
+
+    Map.get(@humanized_statuses, normalized, normalized)
   end
 
   defp humanize_status(_status), do: nil

@@ -11,7 +11,7 @@
 │
 │   ID       ÉTAT           PID      ÂGE / TOUR   JETONS     SESSION        ÉVÉNEMENT
 │   ───────────────────────────────────────────────────────────────────────────────────────────────────────────────
-│ ● MT-777   running        4242     1m 15s / 7        3,200 thre...567890  usage de jetons du thread mis à jour...
+│ ● MT-777   en cours       4242     1m 15s / 7        3,200 thre...567890  usage de jetons du thread mis à jour...
 │
 ├─ File de temporisation
 │

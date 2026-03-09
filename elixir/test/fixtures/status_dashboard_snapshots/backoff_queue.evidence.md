@@ -11,7 +11,7 @@
 │
 │   ID       ÉTAT           PID      ÂGE / TOUR   JETONS     SESSION        ÉVÉNEMENT
 │   ───────────────────────────────────────────────────────────────────────────────────────────────────────────────
-│ ● MT-638   retrying       4242     20m 25s / 7      14,200 thre...567890  flux des messages de l'agent : waiti...
+│ ● MT-638   en relance     4242     20m 25s / 7      14,200 thre...567890  flux des messages de l'agent : waiti...
 │
 ├─ File de temporisation
 │

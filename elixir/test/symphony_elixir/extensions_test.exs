@@ -586,6 +586,7 @@ defmodule SymphonyElixir.ExtensionsTest do
     assert html =~ "Notes d&#39;exécution"
     assert html =~ "En direct"
     assert html =~ "Hors ligne"
+    assert html =~ "En cours"
     assert html =~ "Copier l&#39;ID"
     assert html =~ "Mise à jour Codex"
     refute html =~ "data-runtime-clock="

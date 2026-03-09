@@ -11,7 +11,7 @@ defmodule SymphonyElixir.Codex.AppServer do
   @turn_start_id 3
   @port_line_bytes 1_048_576
   @max_stream_log_bytes 1_000
-  @non_interactive_tool_input_answer "This is a non-interactive session. Operator input is unavailable."
+  @non_interactive_tool_input_answer "Cette session n'est pas interactive. La saisie de l'opérateur est indisponible."
 
   @type session :: %{
           port: port(),

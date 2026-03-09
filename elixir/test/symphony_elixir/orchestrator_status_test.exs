@@ -1292,8 +1292,8 @@ defmodule SymphonyElixir.OrchestratorStatusTest do
 
     plain = strip_ansi(row)
 
-    assert plain =~ "tour terminé (completed)"
-    assert (String.split(plain, "tour terminé (completed)") |> length()) - 1 == 1
+    assert plain =~ "tour terminé"
+    assert (String.split(plain, "tour terminé") |> length()) - 1 == 1
     refute plain =~ " notification "
   end
 
@@ -1351,7 +1351,7 @@ defmodule SymphonyElixir.OrchestratorStatusTest do
 
     plain = strip_ansi(row)
 
-    assert plain =~ "tour terminé (completed)"
+    assert plain =~ "tour terminé"
     refute plain =~ "tour ter..."
   end
 
@@ -1382,7 +1382,7 @@ defmodule SymphonyElixir.OrchestratorStatusTest do
     plain = strip_ansi(row)
 
     assert String.length(plain) == terminal_columns
-    assert plain =~ "tour terminé (completed)"
+    assert plain =~ "tour terminé"
   end
 
   test "status dashboard humanizes full codex app-server event set" do
@@ -1406,8 +1406,8 @@ defmodule SymphonyElixir.OrchestratorStatusTest do
              "status" => "running"
            }
          }
-       }, "élément démarré: command execution"},
-      {"item/completed", %{"params" => %{"item" => %{"type" => "fileChange", "status" => "completed"}}}, "élément terminé: file change"},
+       }, "élément démarré: exécution de commande"},
+      {"item/completed", %{"params" => %{"item" => %{"type" => "fileChange", "status" => "completed"}}}, "élément terminé: modification de fichier"},
       {"item/agentMessage/delta", %{"params" => %{"delta" => "hello"}}, "flux des messages de l'agent"},
       {"item/plan/delta", %{"params" => %{"delta" => "step"}}, "flux du plan"},
       {"item/reasoning/summaryTextDelta", %{"params" => %{"summaryText" => "thinking"}}, "flux du résumé de raisonnement"},
@@ -1519,13 +1519,14 @@ defmodule SymphonyElixir.OrchestratorStatusTest do
           "method" => "item/tool/requestUserInput",
           "params" => %{"question" => "Continue?"}
         },
-        answer: "This is a non-interactive session. Operator input is unavailable."
+        answer: "Cette session n'est pas interactive. La saisie de l'opérateur est indisponible."
       }
     }
 
     humanized = StatusDashboard.humanize_codex_message(message)
     assert humanized =~ "l'outil demande une saisie utilisateur"
     assert humanized =~ "réponse automatique"
+    assert humanized =~ "Cette session n'est pas interactive."
   end
 
   test "status dashboard enriches wrapper reasoning and message streaming events with payload context" do

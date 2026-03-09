@@ -8,6 +8,22 @@ defmodule SymphonyElixirWeb.DashboardLive do
   alias SymphonyElixir.AgentConfig
   alias SymphonyElixirWeb.{Endpoint, ObservabilityPubSub, Presenter}
   @runtime_tick_ms 1_000
+  @translated_state_badges %{
+    "active" => "Actif",
+    "blocked" => "Bloqué",
+    "cancelled" => "Annulé",
+    "canceled" => "Annulé",
+    "completed" => "Terminé",
+    "done" => "Terminé",
+    "error" => "Erreur",
+    "failed" => "Échoué",
+    "in progress" => "En cours",
+    "pending" => "En attente",
+    "queued" => "En attente",
+    "retrying" => "En relance",
+    "running" => "En cours",
+    "todo" => "À faire"
+  }
 
   @impl true
   def mount(_params, _session, socket) do
@@ -272,7 +288,7 @@ defmodule SymphonyElixirWeb.DashboardLive do
                       </td>
                       <td>
                         <span class={state_badge_class(entry.state)}>
-                          <%= entry.state %>
+                          <%= state_badge_label(entry.state) %>
                         </span>
                       </td>
                       <td>
@@ -665,7 +681,7 @@ defmodule SymphonyElixirWeb.DashboardLive do
           {"Épuisés", "Aucun crédit disponible ou non signalé.", "danger"}
       end
 
-    %{label: "Credits", value: value, meta: meta, tone: tone}
+    %{label: "Crédits", value: value, meta: meta, tone: tone}
   end
 
   defp rate_limit_tone(0, _limit), do: "danger"
@@ -743,6 +759,20 @@ defmodule SymphonyElixirWeb.DashboardLive do
       true -> base
     end
   end
+
+  defp state_badge_label(state) when is_binary(state) do
+    normalized =
+      state
+      |> String.replace(~r/([a-z0-9])([A-Z])/, "\\1 \\2")
+      |> String.replace("_", " ")
+      |> String.downcase()
+      |> String.trim()
+
+    Map.get(@translated_state_badges, normalized, if(normalized == "", do: "Inconnu", else: String.capitalize(normalized)))
+  end
+
+  defp state_badge_label(nil), do: "Inconnu"
+  defp state_badge_label(state), do: state |> to_string() |> state_badge_label()
 
   defp schedule_runtime_tick do
     Process.send_after(self(), :runtime_tick, @runtime_tick_ms)
