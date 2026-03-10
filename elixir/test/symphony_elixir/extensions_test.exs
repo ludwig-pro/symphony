@@ -585,6 +585,7 @@ defmodule SymphonyElixir.ExtensionsTest do
     assert html =~ "API des agents"
     assert html =~ "Vue d&#39;ensemble"
     assert html =~ "Navigation"
+    assert html =~ "Durée d&#39;exécution"
     assert html =~ "API d&#39;état"
     assert html =~ "Notes d&#39;exécution"
     assert html =~ "En direct"

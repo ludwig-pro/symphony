@@ -293,9 +293,9 @@ defmodule SymphonyElixirWeb.DashboardLive do
               </article>
 
               <article class="metric-card">
-                <p class="metric-label">Mode</p>
-                <p class="metric-value"><%= dashboard_mode(counts) %></p>
-                <p class="metric-detail mono"><%= @payload.generated_at || "n/d" %></p>
+                <p class="metric-label">Durée d'exécution</p>
+                <p class="metric-value numeric"><%= format_runtime_seconds(total_runtime_seconds(@payload, @now)) %></p>
+                <p class="metric-detail"><%= tracked_issue_copy(counts) %></p>
               </article>
             </section>
 
@@ -555,6 +555,20 @@ defmodule SymphonyElixirWeb.DashboardLive do
     Endpoint.config(:snapshot_timeout_ms) || 15_000
   end
 
+  defp completed_runtime_seconds(%{codex_totals: %{seconds_running: seconds}}) when is_number(seconds),
+    do: seconds
+
+  defp completed_runtime_seconds(_payload), do: 0
+
+  defp total_runtime_seconds(%{running: running} = payload, now) when is_list(running) do
+    completed_runtime_seconds(payload) +
+      Enum.reduce(running, 0, fn entry, total ->
+        total + runtime_seconds_from_started_at(Map.get(entry, :started_at), now)
+      end)
+  end
+
+  defp total_runtime_seconds(payload, _now), do: completed_runtime_seconds(payload)
+
   defp format_runtime_and_turns(started_at, turn_count, now) when is_integer(turn_count) and turn_count > 0 do
     "#{format_runtime_seconds(runtime_seconds_from_started_at(started_at, now))} / #{turn_count}"
   end
@@ -628,6 +642,10 @@ defmodule SymphonyElixirWeb.DashboardLive do
 
   defp tracked_issue_count(%{running: running, retrying: retrying}), do: running + retrying
   defp tracked_issue_count(_counts), do: 0
+
+  defp tracked_issue_copy(counts) do
+    "#{pluralize(tracked_issue_count(counts), "issue suivie", "issues suivies")} entre les sessions actives et la file de relance."
+  end
 
   defp insight_items(payload) do
     counts = Map.get(payload, :counts, %{})
