@@ -10,6 +10,7 @@ defmodule SymphonyElixir.AgentConfig do
   @claude_opus_preset_id "claude-opus"
   @claude_bridge_command "node ./scripts/claude_code_cli_bridge.mjs"
   @availability_ttl_ms 30_000
+  @claude_auth_timeout_ms 3_000
   @agent_preset_override_key :agent_preset_override
   @codex_command_override_key :codex_command_override
   @claude_bridge_availability_cache_key :claude_bridge_availability_cache
@@ -277,11 +278,29 @@ defmodule SymphonyElixir.AgentConfig do
   end
 
   defp probe_claude_auth(claude_binary) do
-    case System.cmd(claude_binary, ["auth", "status"], stderr_to_stdout: true, timeout: 3_000) do
-      {output, 0} ->
+    case run_claude_auth_status(claude_binary) do
+      {:ok, {output, 0}} ->
         decode_claude_auth_status(output)
 
-      {_output, _status} ->
+      {:ok, {_output, _status}} ->
+        unavailable_status(
+          "claude_auth_failed",
+          "La vérification d'authentification de Claude Code a échoué.",
+          true,
+          false,
+          true
+        )
+
+      :timeout ->
+        unavailable_status(
+          "claude_auth_timeout",
+          "La vérification d'authentification de Claude Code a expiré.",
+          true,
+          false,
+          true
+        )
+
+      {:error, _reason} ->
         unavailable_status(
           "claude_auth_failed",
           "La vérification d'authentification de Claude Code a échoué.",
@@ -290,15 +309,27 @@ defmodule SymphonyElixir.AgentConfig do
           true
         )
     end
-  catch
-    :exit, {:timeout, _} ->
-      unavailable_status(
-        "claude_auth_timeout",
-        "La vérification d'authentification de Claude Code a expiré.",
-        true,
-        false,
-        true
-      )
+  end
+
+  defp run_claude_auth_status(claude_binary) do
+    task =
+      Task.async(fn ->
+        try do
+          {:ok, System.cmd(claude_binary, ["auth", "status"], stderr_to_stdout: true)}
+        rescue
+          error -> {:error, error}
+        end
+      end)
+
+    case Task.yield(task, @claude_auth_timeout_ms) do
+      {:ok, result} ->
+        result
+
+      nil ->
+        Task.shutdown(task, :brutal_kill)
+
+        :timeout
+    end
   end
 
   defp decode_claude_auth_status(output) do
