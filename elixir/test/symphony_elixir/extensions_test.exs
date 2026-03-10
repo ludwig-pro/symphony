@@ -533,7 +533,9 @@ defmodule SymphonyElixir.ExtensionsTest do
 
     dashboard_css = response(get(build_conn(), "/dashboard.css"), 200)
     assert dashboard_css =~ ":root {"
-    assert dashboard_css =~ ".hero-layout"
+    assert dashboard_css =~ ".dashboard-frame"
+    assert dashboard_css =~ ".dashboard-sidebar"
+    assert dashboard_css =~ ".sidebar-nav-link"
     assert dashboard_css =~ ".rate-card"
     assert dashboard_css =~ ".status-badge-live"
     assert dashboard_css =~ "[data-phx-main].phx-connected .status-badge-live"
@@ -581,7 +583,8 @@ defmodule SymphonyElixir.ExtensionsTest do
     assert html =~ "Workflow par défaut - Codex"
     assert html =~ "Passerelle Claude prête"
     assert html =~ "API des agents"
-    assert html =~ "Durée d&#39;exécution"
+    assert html =~ "Vue d&#39;ensemble"
+    assert html =~ "Navigation"
     assert html =~ "API d&#39;état"
     assert html =~ "Notes d&#39;exécution"
     assert html =~ "En direct"

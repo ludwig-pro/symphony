@@ -87,345 +87,406 @@ defmodule SymphonyElixirWeb.DashboardLive do
         </article>
       </div>
 
-      <header class="hero-card">
-        <div class="hero-layout">
-          <div class="hero-copy-block">
-            <p class="eyebrow">
-              Observabilité Symphony
-            </p>
-            <h1 class="hero-title">
-              Tableau de bord des opérations
-            </h1>
-            <p class="hero-copy">
-              Centre de contrôle en direct pour suivre la santé de l'orchestration, la pression des relances, l'usage des jetons et la visibilité de la file dans le runtime Symphony actif.
-            </p>
+      <% counts = @payload[:counts] || %{running: 0, retrying: 0} %>
+      <% primary_issue_identifier = primary_running_issue_identifier(@payload[:running] || []) %>
+      <div class="dashboard-frame">
+        <aside class="dashboard-sidebar">
+          <section class="sidebar-panel sidebar-panel-brand">
+            <div class="sidebar-brand-mark">SY</div>
 
-            <div class="hero-meta-grid">
-              <article class="hero-meta-card">
-                <p class="hero-meta-label">Instantané</p>
-                <p class="hero-meta-value mono"><%= @payload.generated_at || "n/d" %></p>
-              </article>
-
-              <article class="hero-meta-card">
-                <p class="hero-meta-label">Mode d'exécution</p>
-                <p class="hero-meta-value"><%= dashboard_mode(@payload[:counts]) %></p>
-              </article>
+            <div class="sidebar-brand-copy">
+              <p class="sidebar-eyebrow">Symphony</p>
+              <p class="sidebar-brand-title">Observabilité</p>
+              <p class="sidebar-copy">
+                Un poste de contrôle latéral inspiré des dashboards shadcn pour suivre l'orchestration active sans quitter la vue principale.
+              </p>
             </div>
-          </div>
+          </section>
 
-          <div class="hero-side">
-            <div class="status-stack">
-              <span class="status-badge status-badge-live">
-                <span class="status-badge-dot"></span>
-                En direct
-              </span>
-              <span class="status-badge status-badge-offline">
-                <span class="status-badge-dot"></span>
-                Hors ligne
-              </span>
+          <section class="sidebar-panel sidebar-panel-emphasis">
+            <div class="sidebar-panel-header">
+              <div>
+                <p class="panel-label">Espace live</p>
+                <h2 class="sidebar-panel-title">Tableau de bord en direct</h2>
+              </div>
+
+              <div class="status-stack">
+                <span class="status-badge status-badge-live">
+                  <span class="status-badge-dot"></span>
+                  En direct
+                </span>
+                <span class="status-badge status-badge-offline">
+                  <span class="status-badge-dot"></span>
+                  Hors ligne
+                </span>
+              </div>
             </div>
 
-            <div class="hero-actions">
+            <p class="sidebar-copy">
+              <%= dashboard_mode_copy(counts) %>
+            </p>
+
+            <dl class="sidebar-stat-list">
+              <div>
+                <dt>Instantané</dt>
+                <dd class="mono"><%= @payload.generated_at || "n/d" %></dd>
+              </div>
+              <div>
+                <dt>Mode</dt>
+                <dd><%= dashboard_mode(counts) %></dd>
+              </div>
+            </dl>
+          </section>
+
+          <nav class="sidebar-panel sidebar-panel-nav" aria-label="Sections du tableau de bord">
+            <p class="panel-label">Navigation</p>
+
+            <div class="sidebar-nav-list">
+              <a class="sidebar-nav-link sidebar-nav-link-active" href="#overview">
+                <span>Vue d'ensemble</span>
+                <span class="sidebar-nav-meta"><%= tracked_issue_count(counts) %></span>
+              </a>
+              <a class="sidebar-nav-link" href="#sessions">
+                <span>Sessions actives</span>
+                <span class="sidebar-nav-meta"><%= counts.running %></span>
+              </a>
+              <a class="sidebar-nav-link" href="#notes">
+                <span>Notes d'exécution</span>
+              </a>
+              <a class="sidebar-nav-link" href="#limits">
+                <span>Limites de débit</span>
+              </a>
+              <a class="sidebar-nav-link" href="#retry-queue">
+                <span>File de relance</span>
+                <span class="sidebar-nav-meta"><%= counts.retrying %></span>
+              </a>
+            </div>
+          </nav>
+
+          <section class="sidebar-panel">
+            <p class="panel-label">Raccourcis</p>
+
+            <div class="sidebar-link-stack">
               <a class="action-chip" href="/api/v1/state">API d'état</a>
               <a class="action-chip action-chip-muted" href="/api/v1/config/agent">API des agents</a>
-              <a
-                :if={primary_running_issue_identifier(@payload[:running] || [])}
-                class="action-chip action-chip-muted"
-                href={issue_json_path(primary_running_issue_identifier(@payload[:running] || []))}
-              >
+              <a :if={primary_issue_identifier} class="action-chip action-chip-muted" href={issue_json_path(primary_issue_identifier)}>
                 JSON de l'issue
               </a>
             </div>
+          </section>
 
-            <div class="agent-panel">
-              <div class="agent-panel-header">
-                <div>
-                  <p class="hero-meta-label">Agent actif</p>
-                  <p class="agent-panel-value"><%= @payload.agent.current.label %></p>
-                </div>
-
-                <span class={agent_provider_badge_class(@payload.agent.current.provider)}>
-                  <%= @payload.agent.current.provider_label %>
-                </span>
-              </div>
-
-              <p class="agent-panel-copy">
-                <%= active_agent_copy(@payload.agent.current) %>
-              </p>
-
-              <form class="agent-switcher" phx-change="switch_agent">
-                <label class="agent-switcher-label" for="agent-preset">Agent suivant</label>
-
-                <div class="agent-switcher-row">
-                  <select
-                    id="agent-preset"
-                    name="agent[preset_id]"
-                    class="agent-select"
-                    aria-label="Sélectionner un profil d'agent"
-                  >
-                    <option
-                      :for={preset <- agent_presets(@payload)}
-                      value={preset.id}
-                      selected={preset.selected}
-                      disabled={not preset.available}
-                    >
-                      <%= agent_option_label(preset) %>
-                    </option>
-                  </select>
-
-                  <span class={claude_bridge_badge_class(@payload.agent.claude_bridge)}>
-                    <%= claude_bridge_badge_label(@payload.agent.claude_bridge) %>
-                  </span>
-                </div>
-              </form>
-
-              <p class="agent-switcher-hint">
-                <%= claude_bridge_copy(@payload.agent.claude_bridge) %>
-              </p>
-            </div>
-
-            <p class="hero-side-copy">
-              <%= dashboard_mode_copy(@payload[:counts]) %>
-            </p>
-          </div>
-        </div>
-      </header>
-
-      <%= if @payload[:error] do %>
-        <section class="error-card">
-          <div class="section-header">
-            <div>
-              <h2 class="error-title">
-                Instantané indisponible
-              </h2>
-              <p class="section-copy">
-                Impossible de générer un nouvel instantané pour le tableau de bord.
-              </p>
-            </div>
-
-            <a class="action-chip action-chip-muted" href="/api/v1/state">
-              Inspecter l'état de l'API
-            </a>
-          </div>
-
-          <p class="error-copy">
-            <strong><%= @payload.error.code %>:</strong> <%= @payload.error.message %>
-          </p>
-        </section>
-      <% else %>
-        <% rate_cards = rate_limit_cards(@payload.rate_limits) %>
-        <section class="metric-grid">
-          <article class="metric-card">
-            <p class="metric-label">Actives</p>
-            <p class="metric-value numeric"><%= @payload.counts.running %></p>
-            <p class="metric-detail">Sessions d'issue actives dans l'environnement d'exécution courant.</p>
-          </article>
-
-          <article class="metric-card">
-            <p class="metric-label">Relances</p>
-            <p class="metric-value numeric"><%= @payload.counts.retrying %></p>
-            <p class="metric-detail">Issues en attente de la prochaine fenêtre de relance.</p>
-          </article>
-
-          <article class="metric-card">
-            <p class="metric-label">Jetons totaux</p>
-            <p class="metric-value numeric"><%= format_int(@payload.codex_totals.total_tokens) %></p>
-            <p class="metric-detail numeric">
-              Entrée <%= format_int(@payload.codex_totals.input_tokens) %> / Sortie <%= format_int(@payload.codex_totals.output_tokens) %>
-            </p>
-          </article>
-
-          <article class="metric-card">
-            <p class="metric-label">Durée d'exécution</p>
-            <p class="metric-value numeric"><%= format_runtime_seconds(total_runtime_seconds(@payload, @now)) %></p>
-            <p class="metric-detail"><%= tracked_issue_copy(@payload.counts) %></p>
-          </article>
-        </section>
-
-        <section class="content-grid">
-          <section class="section-card section-card-primary">
-            <div class="section-header">
+          <div class="agent-panel sidebar-agent-panel">
+            <div class="agent-panel-header">
               <div>
-                <h2 class="section-title">Sessions actives</h2>
-                <p class="section-copy">Issues actives, dernière activité agent connue et usage des jetons.</p>
+                <p class="panel-label">Agent actif</p>
+                <p class="agent-panel-value"><%= @payload.agent.current.label %></p>
               </div>
 
-              <span class="section-chip">
-                <%= tracked_issue_count(@payload.counts) %> suivies
+              <span class={agent_provider_badge_class(@payload.agent.current.provider)}>
+                <%= @payload.agent.current.provider_label %>
               </span>
             </div>
 
-            <%= if @payload.running == [] do %>
-              <p class="empty-state">Aucune session active.</p>
-            <% else %>
-              <div class="table-wrap">
-                <table class="data-table data-table-running">
-                  <colgroup>
-                    <col style="width: 12rem;" />
-                    <col style="width: 8rem;" />
-                    <col style="width: 7.5rem;" />
-                    <col style="width: 8.5rem;" />
-                    <col />
-                    <col style="width: 10rem;" />
-                  </colgroup>
-                  <thead>
-                    <tr>
-                      <th>Issue</th>
-                      <th>État</th>
-                      <th>Session</th>
-                      <th>Durée / tours</th>
-                      <th>Mise à jour Codex</th>
-                      <th>Jetons</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr :for={entry <- @payload.running}>
-                      <td>
-                        <div class="issue-stack">
-                          <span class="issue-id"><%= entry.issue_identifier %></span>
-                          <a class="issue-link" href={issue_json_path(entry.issue_identifier)}>Détails JSON</a>
-                        </div>
-                      </td>
-                      <td>
-                        <span class={state_badge_class(entry.state)}>
-                          <%= state_badge_label(entry.state) %>
-                        </span>
-                      </td>
-                      <td>
-                        <div class="session-stack">
-                          <%= if entry.session_id do %>
-                            <button
-                              type="button"
-                              class="subtle-button"
-                              data-label="Copier l'ID"
-                              data-copy={entry.session_id}
-                              onclick="navigator.clipboard.writeText(this.dataset.copy); this.textContent = 'Copié'; clearTimeout(this._copyTimer); this._copyTimer = setTimeout(() => { this.textContent = this.dataset.label }, 1200);"
-                            >
-                              Copier l'ID
-                            </button>
-                          <% else %>
-                            <span class="muted">n/d</span>
-                          <% end %>
-                        </div>
-                      </td>
-                      <td class="numeric"><%= format_runtime_and_turns(entry.started_at, entry.turn_count, @now) %></td>
-                      <td>
-                        <div class="detail-stack">
-                          <span
-                            class="event-text"
-                            title={entry.last_message || to_string(entry.last_event || "n/d")}
-                          ><%= entry.last_message || to_string(entry.last_event || "n/d") %></span>
-                          <span class="muted event-meta">
-                            <%= entry.last_event || "n/d" %>
-                            <%= if entry.last_event_at do %>
-                              · <span class="mono numeric"><%= entry.last_event_at %></span>
-                            <% end %>
-                          </span>
-                        </div>
-                      </td>
-                      <td>
-                        <div class="token-stack numeric">
-                          <span>Total: <%= format_int(entry.tokens.total_tokens) %></span>
-                          <span class="muted">Entrée <%= format_int(entry.tokens.input_tokens) %> / Sortie <%= format_int(entry.tokens.output_tokens) %></span>
-                        </div>
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            <% end %>
-          </section>
+            <p class="agent-panel-copy">
+              <%= active_agent_copy(@payload.agent.current) %>
+            </p>
 
-          <div class="sidebar-stack">
-            <section class="section-card">
-              <div class="section-header">
-                <div>
-                  <h2 class="section-title">Notes d'exécution</h2>
-                  <p class="section-copy">Lecture rapide de la posture d'orchestration actuelle.</p>
-                </div>
-              </div>
+            <form class="agent-switcher" phx-change="switch_agent">
+              <label class="agent-switcher-label" for="agent-preset">Agent suivant</label>
 
-              <div class="insight-list">
-                <article :for={item <- insight_items(@payload)} class="insight-card">
-                  <p class="insight-label"><%= item.label %></p>
-                  <p class="insight-value"><%= item.value %></p>
-                  <p class="insight-copy"><%= item.copy %></p>
-                </article>
-              </div>
-            </section>
+              <div class="agent-switcher-row">
+                <select
+                  id="agent-preset"
+                  name="agent[preset_id]"
+                  class="agent-select"
+                  aria-label="Sélectionner un profil d'agent"
+                >
+                  <option
+                    :for={preset <- agent_presets(@payload)}
+                    value={preset.id}
+                    selected={preset.selected}
+                    disabled={not preset.available}
+                  >
+                    <%= agent_option_label(preset) %>
+                  </option>
+                </select>
 
-            <section class="section-card">
-              <div class="section-header">
-                <div>
-                  <h2 class="section-title">Limites de débit</h2>
-                  <p class="section-copy">Dernier instantané des quotas amont, résumé sous forme de cartes.</p>
-                </div>
-
-                <span :if={rate_limit_profile(@payload.rate_limits)} class="section-chip">
-                  <%= rate_limit_profile(@payload.rate_limits) %>
+                <span class={claude_bridge_badge_class(@payload.agent.claude_bridge)}>
+                  <%= claude_bridge_badge_label(@payload.agent.claude_bridge) %>
                 </span>
               </div>
+            </form>
 
-              <%= if rate_cards == [] do %>
-                <p class="empty-state">Aucune donnée de limite de débit disponible pour le moment.</p>
-              <% else %>
-                <div class="rate-grid">
-                  <article :for={card <- rate_cards} class={["rate-card", "rate-card-#{card.tone}"]}>
-                    <p class="rate-label"><%= card.label %></p>
-                    <p class="rate-value numeric"><%= card.value %></p>
-                    <p class="rate-meta"><%= card.meta %></p>
-                  </article>
-                </div>
-              <% end %>
-
-              <pre class="code-panel"><%= pretty_value(@payload.rate_limits) %></pre>
-            </section>
+            <p class="agent-switcher-hint">
+              <%= claude_bridge_copy(@payload.agent.claude_bridge) %>
+            </p>
           </div>
-        </section>
+        </aside>
 
-        <section class="section-card">
-          <div class="section-header">
-            <div>
-              <h2 class="section-title">File de relance</h2>
-              <p class="section-copy">Issues en attente de la prochaine fenêtre de relance.</p>
+        <div class="dashboard-workspace">
+          <header class="workspace-banner" id="overview">
+            <div class="workspace-banner-copy">
+              <p class="eyebrow">Observabilité Symphony</p>
+              <h1 class="workspace-title">Tableau de bord des opérations</h1>
+              <p class="workspace-copy">
+                Centre de contrôle en direct pour suivre la santé de l'orchestration, la pression des relances, l'usage des jetons et la visibilité de la file dans le runtime Symphony actif.
+              </p>
             </div>
 
-            <span class="section-chip section-chip-warning">
-              <%= @payload.counts.retrying %> en attente
-            </span>
-          </div>
+            <div class="workspace-banner-cards">
+              <article class="workspace-banner-card">
+                <p class="panel-label">Agent actif</p>
+                <p class="workspace-banner-value"><%= @payload.agent.current.label %></p>
+                <p class="workspace-banner-meta"><%= @payload.agent.current.provider_label %></p>
+              </article>
 
-          <%= if @payload.retrying == [] do %>
-            <p class="empty-state">Aucune issue n'est actuellement en temporisation.</p>
-          <% else %>
-            <div class="retry-grid">
-              <article :for={entry <- @payload.retrying} class="retry-card">
-                <div class="retry-card-header">
-                  <div class="issue-stack">
-                    <span class="issue-id"><%= entry.issue_identifier %></span>
-                    <a class="issue-link" href={issue_json_path(entry.issue_identifier)}>Détails JSON</a>
-                  </div>
-
-                  <span class="state-badge state-badge-warning">
-                    Tentative <%= entry.attempt %>
-                  </span>
-                </div>
-
-                <dl class="retry-meta">
-                  <div>
-                    <dt>Prévue à</dt>
-                    <dd class="mono"><%= entry.due_at || "n/d" %></dd>
-                  </div>
-                  <div>
-                    <dt>Dernière erreur</dt>
-                    <dd><%= entry.error || "n/d" %></dd>
-                  </div>
-                </dl>
+              <article class="workspace-banner-card">
+                <p class="panel-label">Mode courant</p>
+                <p class="workspace-banner-value"><%= dashboard_mode(counts) %></p>
+                <p class="workspace-banner-meta mono"><%= @payload.generated_at || "n/d" %></p>
               </article>
             </div>
+          </header>
+
+          <%= if @payload[:error] do %>
+            <section class="error-card">
+              <div class="section-header">
+                <div>
+                  <h2 class="error-title">
+                    Instantané indisponible
+                  </h2>
+                  <p class="section-copy">
+                    Impossible de générer un nouvel instantané pour le tableau de bord.
+                  </p>
+                </div>
+
+                <a class="action-chip action-chip-muted" href="/api/v1/state">
+                  Inspecter l'état de l'API
+                </a>
+              </div>
+
+              <p class="error-copy">
+                <strong><%= @payload.error.code %>:</strong> <%= @payload.error.message %>
+              </p>
+            </section>
+          <% else %>
+            <% rate_cards = rate_limit_cards(@payload.rate_limits) %>
+            <section class="metric-grid">
+              <article class="metric-card">
+                <p class="metric-label">Actives</p>
+                <p class="metric-value numeric"><%= counts.running %></p>
+                <p class="metric-detail">Sessions d'issue actives dans l'environnement d'exécution courant.</p>
+              </article>
+
+              <article class="metric-card">
+                <p class="metric-label">Relances</p>
+                <p class="metric-value numeric"><%= counts.retrying %></p>
+                <p class="metric-detail">Issues en attente de la prochaine fenêtre de relance.</p>
+              </article>
+
+              <article class="metric-card">
+                <p class="metric-label">Jetons totaux</p>
+                <p class="metric-value numeric"><%= format_int(@payload.codex_totals.total_tokens) %></p>
+                <p class="metric-detail numeric">
+                  Entrée <%= format_int(@payload.codex_totals.input_tokens) %> / Sortie <%= format_int(@payload.codex_totals.output_tokens) %>
+                </p>
+              </article>
+
+              <article class="metric-card">
+                <p class="metric-label">Mode</p>
+                <p class="metric-value"><%= dashboard_mode(counts) %></p>
+                <p class="metric-detail mono"><%= @payload.generated_at || "n/d" %></p>
+              </article>
+            </section>
+
+            <section class="workspace-grid">
+              <div class="workspace-main">
+                <section class="section-card section-card-primary" id="sessions">
+                  <div class="section-header">
+                    <div>
+                      <h2 class="section-title">Sessions actives</h2>
+                      <p class="section-copy">Issues actives, dernière activité agent connue et usage des jetons.</p>
+                    </div>
+
+                    <span class="section-chip">
+                      <%= tracked_issue_count(counts) %> suivies
+                    </span>
+                  </div>
+
+                  <%= if @payload.running == [] do %>
+                    <p class="empty-state">Aucune session active.</p>
+                  <% else %>
+                    <div class="table-wrap">
+                      <table class="data-table data-table-running">
+                        <colgroup>
+                          <col style="width: 12rem;" />
+                          <col style="width: 8rem;" />
+                          <col style="width: 7.5rem;" />
+                          <col style="width: 8.5rem;" />
+                          <col />
+                          <col style="width: 10rem;" />
+                        </colgroup>
+                        <thead>
+                          <tr>
+                            <th>Issue</th>
+                            <th>État</th>
+                            <th>Session</th>
+                            <th>Durée / tours</th>
+                            <th>Mise à jour Codex</th>
+                            <th>Jetons</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr :for={entry <- @payload.running}>
+                            <td>
+                              <div class="issue-stack">
+                                <span class="issue-id"><%= entry.issue_identifier %></span>
+                                <a class="issue-link" href={issue_json_path(entry.issue_identifier)}>Détails JSON</a>
+                              </div>
+                            </td>
+                            <td>
+                              <span class={state_badge_class(entry.state)}>
+                                <%= state_badge_label(entry.state) %>
+                              </span>
+                            </td>
+                            <td>
+                              <div class="session-stack">
+                                <%= if entry.session_id do %>
+                                  <button
+                                    type="button"
+                                    class="subtle-button"
+                                    data-label="Copier l'ID"
+                                    data-copy={entry.session_id}
+                                    onclick="navigator.clipboard.writeText(this.dataset.copy); this.textContent = 'Copié'; clearTimeout(this._copyTimer); this._copyTimer = setTimeout(() => { this.textContent = this.dataset.label }, 1200);"
+                                  >
+                                    Copier l'ID
+                                  </button>
+                                <% else %>
+                                  <span class="muted">n/d</span>
+                                <% end %>
+                              </div>
+                            </td>
+                            <td class="numeric"><%= format_runtime_and_turns(entry.started_at, entry.turn_count, @now) %></td>
+                            <td>
+                              <div class="detail-stack">
+                                <span
+                                  class="event-text"
+                                  title={entry.last_message || to_string(entry.last_event || "n/d")}
+                                ><%= entry.last_message || to_string(entry.last_event || "n/d") %></span>
+                                <span class="muted event-meta">
+                                  <%= entry.last_event || "n/d" %>
+                                  <%= if entry.last_event_at do %>
+                                    · <span class="mono numeric"><%= entry.last_event_at %></span>
+                                  <% end %>
+                                </span>
+                              </div>
+                            </td>
+                            <td>
+                              <div class="token-stack numeric">
+                                <span>Total: <%= format_int(entry.tokens.total_tokens) %></span>
+                                <span class="muted">Entrée <%= format_int(entry.tokens.input_tokens) %> / Sortie <%= format_int(entry.tokens.output_tokens) %></span>
+                              </div>
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  <% end %>
+                </section>
+
+                <section class="section-card" id="retry-queue">
+                  <div class="section-header">
+                    <div>
+                      <h2 class="section-title">File de relance</h2>
+                      <p class="section-copy">Issues en attente de la prochaine fenêtre de relance.</p>
+                    </div>
+
+                    <span class="section-chip section-chip-warning">
+                      <%= counts.retrying %> en attente
+                    </span>
+                  </div>
+
+                  <%= if @payload.retrying == [] do %>
+                    <p class="empty-state">Aucune issue n'est actuellement en temporisation.</p>
+                  <% else %>
+                    <div class="retry-grid">
+                      <article :for={entry <- @payload.retrying} class="retry-card">
+                        <div class="retry-card-header">
+                          <div class="issue-stack">
+                            <span class="issue-id"><%= entry.issue_identifier %></span>
+                            <a class="issue-link" href={issue_json_path(entry.issue_identifier)}>Détails JSON</a>
+                          </div>
+
+                          <span class="state-badge state-badge-warning">
+                            Tentative <%= entry.attempt %>
+                          </span>
+                        </div>
+
+                        <dl class="retry-meta">
+                          <div>
+                            <dt>Prévue à</dt>
+                            <dd class="mono"><%= entry.due_at || "n/d" %></dd>
+                          </div>
+                          <div>
+                            <dt>Dernière erreur</dt>
+                            <dd><%= entry.error || "n/d" %></dd>
+                          </div>
+                        </dl>
+                      </article>
+                    </div>
+                  <% end %>
+                </section>
+              </div>
+
+              <div class="workspace-rail">
+                <section class="section-card" id="notes">
+                  <div class="section-header">
+                    <div>
+                      <h2 class="section-title">Notes d'exécution</h2>
+                      <p class="section-copy">Lecture rapide de la posture d'orchestration actuelle.</p>
+                    </div>
+                  </div>
+
+                  <div class="insight-list">
+                    <article :for={item <- insight_items(@payload)} class="insight-card">
+                      <p class="insight-label"><%= item.label %></p>
+                      <p class="insight-value"><%= item.value %></p>
+                      <p class="insight-copy"><%= item.copy %></p>
+                    </article>
+                  </div>
+                </section>
+
+                <section class="section-card" id="limits">
+                  <div class="section-header">
+                    <div>
+                      <h2 class="section-title">Limites de débit</h2>
+                      <p class="section-copy">Dernier instantané des quotas amont, résumé sous forme de cartes.</p>
+                    </div>
+
+                    <span :if={rate_limit_profile(@payload.rate_limits)} class="section-chip">
+                      <%= rate_limit_profile(@payload.rate_limits) %>
+                    </span>
+                  </div>
+
+                  <%= if rate_cards == [] do %>
+                    <p class="empty-state">Aucune donnée de limite de débit disponible pour le moment.</p>
+                  <% else %>
+                    <div class="rate-grid">
+                      <article :for={card <- rate_cards} class={["rate-card", "rate-card-#{card.tone}"]}>
+                        <p class="rate-label"><%= card.label %></p>
+                        <p class="rate-value numeric"><%= card.value %></p>
+                        <p class="rate-meta"><%= card.meta %></p>
+                      </article>
+                    </div>
+                  <% end %>
+
+                  <pre class="code-panel"><%= pretty_value(@payload.rate_limits) %></pre>
+                </section>
+              </div>
+            </section>
           <% end %>
-        </section>
-      <% end %>
+        </div>
+      </div>
     </section>
     """
   end
@@ -492,17 +553,6 @@ defmodule SymphonyElixirWeb.DashboardLive do
 
   defp snapshot_timeout_ms do
     Endpoint.config(:snapshot_timeout_ms) || 15_000
-  end
-
-  defp completed_runtime_seconds(payload) do
-    payload.codex_totals.seconds_running || 0
-  end
-
-  defp total_runtime_seconds(payload, now) do
-    completed_runtime_seconds(payload) +
-      Enum.reduce(payload.running, 0, fn entry, total ->
-        total + runtime_seconds_from_started_at(entry.started_at, now)
-      end)
   end
 
   defp format_runtime_and_turns(started_at, turn_count, now) when is_integer(turn_count) and turn_count > 0 do
@@ -578,10 +628,6 @@ defmodule SymphonyElixirWeb.DashboardLive do
 
   defp tracked_issue_count(%{running: running, retrying: retrying}), do: running + retrying
   defp tracked_issue_count(_counts), do: 0
-
-  defp tracked_issue_copy(counts) do
-    "#{pluralize(tracked_issue_count(counts), "issue suivie", "issues suivies")} entre les sessions actives et la file de relance."
-  end
 
   defp insight_items(payload) do
     counts = Map.get(payload, :counts, %{})
