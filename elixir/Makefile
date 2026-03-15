@@ -1,9 +1,9 @@
-.PHONY: help all setup deps build fmt fmt-check lint test coverage ci dialyzer
+.PHONY: help all setup deps build fmt fmt-check lint test coverage ci dialyzer dashboard dashboard-watch dashboard-test
 
 MIX ?= mix
 
 help:
-	@echo "Targets: setup, deps, fmt, fmt-check, lint, test, coverage, dialyzer, ci"
+	@echo "Targets: setup, deps, fmt, fmt-check, lint, test, coverage, dialyzer, dashboard, dashboard-watch, dashboard-test, ci"
 
 setup:
 	$(MIX) setup
@@ -33,8 +33,18 @@ dialyzer:
 	$(MIX) deps.get
 	$(MIX) dialyzer --format short
 
+dashboard:
+	./scripts/dashboard
+
+dashboard-watch:
+	./scripts/dashboard watch
+
+dashboard-test:
+	./scripts/dashboard test
+
 ci:
 	$(MAKE) setup
+	$(MAKE) dashboard-test
 	$(MAKE) build
 	$(MAKE) fmt-check
 	$(MAKE) lint

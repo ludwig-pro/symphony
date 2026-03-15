@@ -2,7 +2,6 @@ defmodule SymphonyElixir.ExtensionsTest do
   use SymphonyElixir.TestSupport
 
   import Phoenix.ConnTest
-  import Phoenix.LiveViewTest
 
   alias SymphonyElixir.Linear.Adapter
   alias SymphonyElixir.Tracker.Memory
@@ -506,7 +505,7 @@ defmodule SymphonyElixir.ExtensionsTest do
     assert_agent_payload(timeout_payload["agent"], "workflow-default")
   end
 
-  test "dashboard bootstraps liveview from embedded static assets" do
+  test "dashboard serves the React shell and compiled static assets" do
     orchestrator_name = Module.concat(__MODULE__, :AssetOrchestrator)
 
     {:ok, _pid} =
@@ -524,140 +523,45 @@ defmodule SymphonyElixir.ExtensionsTest do
     start_test_endpoint(orchestrator: orchestrator_name, snapshot_timeout_ms: 50)
 
     html = html_response(get(build_conn(), "/"), 200)
-    assert html =~ "/dashboard.css"
-    assert html =~ "/vendor/phoenix_html/phoenix_html.js"
-    assert html =~ "/vendor/phoenix/phoenix.js"
-    assert html =~ "/vendor/phoenix_live_view/phoenix_live_view.js"
-    refute html =~ "/assets/app.js"
-    refute html =~ "<style>"
+    assert html =~ "Observabilité Symphony"
+    assert html =~ ~s(data-dashboard-root="react")
+    assert html =~ ~r(/dashboard/assets/index-[A-Za-z0-9_-]+\.js)
+    assert html =~ ~r(/dashboard/assets/index-[A-Za-z0-9_-]+\.css)
+    refute html =~ "/dashboard.css"
+    refute html =~ "/vendor/phoenix_html/phoenix_html.js"
+    refute html =~ "/vendor/phoenix/phoenix.js"
+    refute html =~ "/vendor/phoenix_live_view/phoenix_live_view.js"
 
-    dashboard_css = response(get(build_conn(), "/dashboard.css"), 200)
-    assert dashboard_css =~ ":root {"
-    assert dashboard_css =~ ".hero-layout"
-    assert dashboard_css =~ ".rate-card"
-    assert dashboard_css =~ ".status-badge-live"
-    assert dashboard_css =~ "[data-phx-main].phx-connected .status-badge-live"
-    assert dashboard_css =~ "[data-phx-main].phx-connected .status-badge-offline"
-    assert dashboard_css =~ ".agent-panel"
-    assert dashboard_css =~ ".agent-select"
-    assert dashboard_css =~ ".flash-toast"
+    for path <- ["/sessions", "/agents", "/limits", "/retries"] do
+      page_html = html_response(get(build_conn(), path), 200)
+      assert page_html =~ "Observabilité Symphony"
+      assert page_html =~ ~s(data-dashboard-root="react")
+    end
 
-    phoenix_html_js = response(get(build_conn(), "/vendor/phoenix_html/phoenix_html.js"), 200)
-    assert phoenix_html_js =~ "phoenix.link.click"
+    [js_path] = extract_paths(html, ~r|(/dashboard/assets/index-[A-Za-z0-9_-]+\.js)|)
+    [css_path] = extract_paths(html, ~r|(/dashboard/assets/index-[A-Za-z0-9_-]+\.css)|)
 
-    phoenix_js = response(get(build_conn(), "/vendor/phoenix/phoenix.js"), 200)
-    assert phoenix_js =~ "var Phoenix = (() => {"
+    javascript = response(get(build_conn(), js_path), 200)
+    assert javascript =~ "/api/v1/state"
+    assert javascript =~ "Tableau de bord des opérations"
 
-    live_view_js =
-      response(get(build_conn(), "/vendor/phoenix_live_view/phoenix_live_view.js"), 200)
-
-    assert live_view_js =~ "var LiveView = (() => {"
+    stylesheet = response(get(build_conn(), css_path), 200)
+    assert stylesheet =~ "--sidebar:"
+    assert stylesheet =~ "#root{min-height:100svh}"
   end
 
-  test "dashboard liveview renders and refreshes over pubsub" do
-    orchestrator_name = Module.concat(__MODULE__, :DashboardOrchestrator)
-    snapshot = static_snapshot()
-
-    {:ok, orchestrator_pid} =
-      StaticOrchestrator.start_link(
-        name: orchestrator_name,
-        snapshot: snapshot,
-        refresh: %{
-          queued: true,
-          coalesced: true,
-          requested_at: DateTime.utc_now(),
-          operations: ["poll"]
-        }
-      )
-
-    start_test_endpoint(orchestrator: orchestrator_name, snapshot_timeout_ms: 50)
-
-    {:ok, view, html} = live(build_conn(), "/")
-    assert html =~ "Tableau de bord des opérations"
-    assert html =~ "MT-HTTP"
-    assert html =~ "MT-RETRY"
-    assert html =~ "rendered"
-    assert html =~ "Agent actif"
-    assert html =~ "Workflow par défaut - Codex"
-    assert html =~ "Passerelle Claude prête"
-    assert html =~ "API des agents"
-    assert html =~ "Durée d&#39;exécution"
-    assert html =~ "API d&#39;état"
-    assert html =~ "Notes d&#39;exécution"
-    assert html =~ "En direct"
-    assert html =~ "Hors ligne"
-    assert html =~ "En cours"
-    assert html =~ "Copier l&#39;ID"
-    assert html =~ "Mise à jour Codex"
-    refute html =~ "data-runtime-clock="
-    refute html =~ "setInterval(refreshRuntimeClocks"
-    refute html =~ "Refresh now"
-    refute html =~ "Transport"
-    assert html =~ "status-badge-live"
-    assert html =~ "status-badge-offline"
-
-    switch_html =
-      view
-      |> element("form.agent-switcher")
-      |> render_change(%{"agent" => %{"preset_id" => "claude-sonnet"}})
-
-    assert switch_html =~ "Basculé vers Claude Code : les prochains agents utiliseront claude-sonnet-4-6."
-    assert switch_html =~ "Claude Code - claude-sonnet-4-6"
-    assert Config.codex_command() == "SYMPHONY_CLAUDE_MODEL=claude-sonnet-4-6 node ./scripts/claude_code_cli_bridge.mjs"
-
-    updated_snapshot =
-      put_in(snapshot.running, [
-        %{
-          issue_id: "issue-http",
-          identifier: "MT-HTTP",
-          state: "In Progress",
-          session_id: "thread-http",
-          turn_count: 8,
-          last_codex_event: :notification,
-          last_codex_message: %{
-            event: :notification,
-            message: %{
-              payload: %{
-                "method" => "codex/event/agent_message_content_delta",
-                "params" => %{
-                  "msg" => %{
-                    "content" => "structured update"
-                  }
-                }
-              }
-            }
-          },
-          last_codex_timestamp: DateTime.utc_now(),
-          codex_input_tokens: 10,
-          codex_output_tokens: 12,
-          codex_total_tokens: 22,
-          started_at: DateTime.utc_now()
-        }
-      ])
-
-    :sys.replace_state(orchestrator_pid, fn state ->
-      Keyword.put(state, :snapshot, updated_snapshot)
-    end)
-
-    StatusDashboard.notify_update()
-
-    assert_eventually(fn ->
-      render(view) =~ "flux du contenu du message de l&#39;agent : structured update"
-    end)
-  end
-
-  test "dashboard liveview renders an unavailable state without crashing" do
+  test "dashboard shell renders even when the orchestrator snapshot is unavailable" do
     start_test_endpoint(
       orchestrator: Module.concat(__MODULE__, :MissingDashboardOrchestrator),
       snapshot_timeout_ms: 5
     )
 
-    {:ok, _view, html} = live(build_conn(), "/")
-    assert html =~ "Instantané indisponible"
-    assert html =~ "snapshot_unavailable"
+    html = html_response(get(build_conn(), "/"), 200)
+    assert html =~ "Observabilité Symphony"
+    assert html =~ ~s(data-dashboard-root="react")
   end
 
-  test "http server serves embedded assets, accepts form posts, and rejects invalid hosts" do
+  test "http server serves dashboard assets, accepts form posts, and rejects invalid hosts" do
     spec = HttpServer.child_spec(port: 0)
     assert spec.id == HttpServer
     assert spec.start == {HttpServer, :start_link, [[port: 0]]}
@@ -693,13 +597,15 @@ defmodule SymphonyElixir.ExtensionsTest do
     assert response.status == 200
     assert response.body["counts"] == %{"running" => 1, "retrying" => 1}
 
-    dashboard_css = Req.get!("http://127.0.0.1:#{port}/dashboard.css")
-    assert dashboard_css.status == 200
-    assert dashboard_css.body =~ ":root {"
+    dashboard = Req.get!("http://127.0.0.1:#{port}/")
+    assert dashboard.status == 200
+    assert dashboard.body =~ ~s(data-dashboard-root="react")
 
-    phoenix_js = Req.get!("http://127.0.0.1:#{port}/vendor/phoenix/phoenix.js")
-    assert phoenix_js.status == 200
-    assert phoenix_js.body =~ "var Phoenix = (() => {"
+    [js_path] = extract_paths(dashboard.body, ~r|(/dashboard/assets/index-[A-Za-z0-9_-]+\.js)|)
+
+    javascript = Req.get!("http://127.0.0.1:#{port}#{js_path}")
+    assert javascript.status == 200
+    assert javascript.body =~ "/api/v1/state"
 
     refresh_response =
       Req.post!("http://127.0.0.1:#{port}/api/v1/refresh",
@@ -817,6 +723,13 @@ defmodule SymphonyElixir.ExtensionsTest do
   end
 
   defp assert_eventually(_fun, 0), do: flunk("condition not met in time")
+
+  defp extract_paths(html, regex) do
+    regex
+    |> Regex.scan(html, capture: :all_but_first)
+    |> List.flatten()
+    |> Enum.uniq()
+  end
 
   defp ensure_workflow_store_running do
     if Process.whereis(WorkflowStore) do

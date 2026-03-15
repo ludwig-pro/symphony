@@ -4,30 +4,26 @@ defmodule SymphonyElixirWeb.Router do
   """
 
   use Phoenix.Router
-  import Phoenix.LiveView.Router
 
   pipeline :browser do
     plug(:fetch_session)
-    plug(:fetch_live_flash)
-    plug(:put_root_layout, html: {SymphonyElixirWeb.Layouts, :root})
     plug(:protect_from_forgery)
     plug(:put_secure_browser_headers)
   end
 
   scope "/", SymphonyElixirWeb do
-    get("/dashboard.css", StaticAssetController, :dashboard_css)
-    get("/vendor/phoenix_html/phoenix_html.js", StaticAssetController, :phoenix_html_js)
-    get("/vendor/phoenix/phoenix.js", StaticAssetController, :phoenix_js)
-    get("/vendor/phoenix_live_view/phoenix_live_view.js", StaticAssetController, :phoenix_live_view_js)
-  end
-
-  scope "/", SymphonyElixirWeb do
     pipe_through(:browser)
 
-    live("/", DashboardLive, :index)
+    get("/", DashboardController, :index)
+    get("/sessions", DashboardController, :index)
+    get("/agents", DashboardController, :index)
+    get("/limits", DashboardController, :index)
+    get("/retries", DashboardController, :index)
   end
 
   scope "/", SymphonyElixirWeb do
+    get("/dashboard/*path", DashboardAssetController, :show)
+    head("/dashboard/*path", DashboardAssetController, :show)
     get("/api/v1/config/agent", ObservabilityApiController, :agent)
     post("/api/v1/config/agent", ObservabilityApiController, :update_agent)
     match(:*, "/api/v1/config/agent", ObservabilityApiController, :method_not_allowed)

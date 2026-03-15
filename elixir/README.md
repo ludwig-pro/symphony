@@ -45,11 +45,12 @@ Symphony stops the active agent for that issue and cleans up matching workspaces
 
 ## Prerequisites
 
-We recommend using [mise](https://mise.jdx.dev/) to manage Elixir/Erlang versions.
+We recommend using [mise](https://mise.jdx.dev/) to manage Elixir, Erlang, and Node.js versions.
 
 ```bash
 mise install
 mise exec -- elixir --version
+mise exec -- node --version
 ```
 
 ## Run
@@ -187,17 +188,45 @@ If you still need the legacy SDK-based bridge that imports `@anthropic-ai/claude
 expects `ANTHROPIC_API_KEY`, it remains available at `scripts/claude_code_app_server.mjs`.
 
 - If `WORKFLOW.md` is missing or has invalid YAML, startup and scheduling are halted until fixed.
-- `server.port` or CLI `--port` enables the optional Phoenix LiveView dashboard and JSON API at
+- `server.port` or CLI `--port` enables the optional Phoenix dashboard service and JSON API at
   `/`, `/api/v1/state`, `/api/v1/<issue_identifier>`, and `/api/v1/refresh`.
 
 ## Web dashboard
 
 The observability UI now runs on a minimal Phoenix stack:
 
-- LiveView for the dashboard at `/`
+- React + TypeScript SPA at `/`, built from [`assets/`](./assets) with Vite, Tailwind CSS v4,
+  and `shadcn/ui`
 - JSON API for operational debugging under `/api/v1/*`
 - Bandit as the HTTP server
-- Phoenix dependency static assets for the LiveView client bootstrap
+- Static dashboard assets emitted to `priv/static/dashboard`
+
+For local UI work:
+
+```bash
+cd elixir
+./scripts/dashboard
+```
+
+Useful shortcuts:
+
+```bash
+cd elixir
+./scripts/dashboard
+./scripts/dashboard watch
+./scripts/dashboard test
+./scripts/dashboard run --workflow ./WORKFLOW.md --port 8080
+```
+
+`./scripts/dashboard` defaults to `WORKFLOW.preview.md`, builds the React bundle, rebuilds the
+Symphony escript, and starts the dashboard on `http://localhost:4000/`.
+
+Build and test commands still compile the dashboard bundle automatically before the Elixir steps:
+
+```bash
+mise exec -- mix build
+mise exec -- mix test
+```
 
 ## Pull request previews
 

@@ -27,15 +27,12 @@ defmodule SymphonyElixir.MixProject do
           SymphonyElixir.StatusDashboard,
           SymphonyElixir.LogFile,
           SymphonyElixir.Workspace,
-          SymphonyElixirWeb.DashboardLive,
+          SymphonyElixirWeb.DashboardController,
           SymphonyElixirWeb.Endpoint,
           SymphonyElixirWeb.ErrorHTML,
           SymphonyElixirWeb.ErrorJSON,
-          SymphonyElixirWeb.Layouts,
           SymphonyElixirWeb.ObservabilityApiController,
           SymphonyElixirWeb.Presenter,
-          SymphonyElixirWeb.StaticAssetController,
-          SymphonyElixirWeb.StaticAssets,
           SymphonyElixirWeb.Router,
           SymphonyElixirWeb.Router.Helpers
         ]
@@ -82,9 +79,12 @@ defmodule SymphonyElixir.MixProject do
 
   defp aliases do
     [
-      setup: ["deps.get"],
-      build: ["escript.build"],
-      lint: ["specs.check", "credo --strict"]
+      setup: ["deps.get", "assets.setup"],
+      build: ["assets.setup", "assets.build", "escript.build"],
+      test: ["assets.setup", "assets.build", "test"],
+      lint: ["specs.check", "credo --strict"],
+      "assets.setup": ["cmd --cd . npm ci", "cmd --cd . npm run dashboard:install"],
+      "assets.build": ["cmd --cd . npm run dashboard:build"]
     ]
   end
 
