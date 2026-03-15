@@ -223,7 +223,7 @@ jobs:
           state_api_url="${{ steps.meta.outputs.state_api_url }}"
 
           dashboard_html="$(curl --fail --retry 15 --retry-all-errors --retry-delay 4 --silent --show-error "${preview_url}/")"
-          printf '%s\n' "$dashboard_html" | grep -q 'class="dashboard-shell"'
+          printf '%s\n' "$dashboard_html" | grep -q 'data-dashboard-root="react"'
 
           state_payload="$(curl --fail --retry 15 --retry-all-errors --retry-delay 4 --silent --show-error "$state_api_url")"
           printf '%s\n' "$state_payload" | jq -e '.generated_at and .counts and .codex_totals' >/dev/null

@@ -1,20 +1,20 @@
 # Pull Request Preview Deployments
 
-Symphony pull requests can publish a hosted preview of the Phoenix observability
-dashboard so reviewers can inspect UI changes without checking out the branch
-locally.
+Symphony pull requests can publish a hosted preview of the React observability
+dashboard served by Phoenix so reviewers can inspect UI changes without checking
+out the branch locally.
 
 ## Chosen target
 
 - Platform: Fly.io Machines
 - Isolation model: one Fly app per pull request, named
   `<prefix>-pr-<number>`
-- Review surface: the Phoenix dashboard at `/` plus the JSON payload at
+- Review surface: the React dashboard at `/` plus the JSON payload at
   `/api/v1/state`
 
 Fly is a good fit here because the Elixir app already runs as a single HTTP
-process, and a per-PR app gives reviewers a stable URL that behaves like a
-typical preview deployment.
+process, builds the dashboard bundle into `priv/static/dashboard`, and a per-PR
+app gives reviewers a stable URL that behaves like a typical preview deployment.
 
 ## Safety model
 
@@ -57,8 +57,8 @@ The GitHub Actions workflow at
 handles the lifecycle:
 
 1. Derive a deterministic Fly app name from the pull request number.
-2. Build `Dockerfile.preview`, which packages the Elixir app plus
-   `WORKFLOW.preview.md`.
+2. Build `Dockerfile.preview`, which installs Node 20, compiles the dashboard
+   from `elixir/assets`, and packages the Elixir app plus `WORKFLOW.preview.md`.
 3. Create or update the Fly app for that pull request.
 4. Smoke-check `/` and `/api/v1/state`.
 5. Update a stable PR comment with the preview URL and reviewer checklist.
@@ -84,7 +84,7 @@ update as the automatic path.
 
 When a preview comment appears on the pull request:
 
-- Open the dashboard URL and verify the page renders the PR's UI changes.
+- Open the dashboard URL and verify the React shell renders the PR's UI changes.
 - Click or open `/api/v1/state` and confirm it returns HTTP 200 JSON.
 - Confirm the dashboard chrome and the state payload both represent the same
   idle/runtime state.
@@ -99,5 +99,6 @@ These commands are useful before pushing preview workflow changes:
 .github/scripts/preview-fly-app-name.sh symphony 123
 .github/scripts/render-preview-fly-toml.sh symphony-pr-123 iad
 .github/scripts/test-preview-fly-app-scripts.sh
-cd elixir && make fmt-check test
+cd elixir && make dashboard-test
+cd elixir && mise exec -- mix test
 ```
