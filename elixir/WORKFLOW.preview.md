@@ -10,6 +10,7 @@ agent:
   max_turns: 1
 codex:
   command: codex app-server
+  approval_policy: never
 observability:
   dashboard_enabled: true
   refresh_ms: 1000
