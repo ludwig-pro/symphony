@@ -1,0 +1,179 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT_DIR"
+
+COMMAND="run"
+PORT="4000"
+WORKFLOW="./WORKFLOW.preview.md"
+SETUP=0
+
+usage() {
+  cat <<'EOF'
+Usage:
+  ./scripts/dashboard [run|watch|build|test] [--port PORT] [--workflow PATH] [--setup]
+
+Commands:
+  run     Build the dashboard and start Symphony on http://localhost:PORT
+  watch   Rebuild the dashboard on file changes, then start Symphony
+  build   Build the dashboard bundle and the escript, without starting the server
+  test    Run the frontend dashboard tests and the Phoenix dashboard integration tests
+
+Options:
+  --port PORT        HTTP port for Symphony when using run/watch (default: 4000)
+  --workflow PATH    Workflow file passed to Symphony (default: ./WORKFLOW.preview.md)
+  --setup            Force a full setup before running the selected command
+  --help             Show this help
+
+Examples:
+  ./scripts/dashboard
+  ./scripts/dashboard watch
+  ./scripts/dashboard run --workflow ./WORKFLOW.md --port 8080
+  ./scripts/dashboard test
+EOF
+}
+
+log() {
+  printf '==> %s\n' "$*"
+}
+
+run_cmd() {
+  printf '+ %s\n' "$*"
+  "$@"
+}
+
+have_mise() {
+  command -v mise >/dev/null 2>&1
+}
+
+with_tools() {
+  if have_mise; then
+    run_cmd mise exec -- "$@"
+  else
+    run_cmd "$@"
+  fi
+}
+
+ensure_setup() {
+  if have_mise; then
+    run_cmd mise trust || true
+    run_cmd mise install
+  fi
+
+  with_tools mix setup
+}
+
+maybe_setup() {
+  if [[ "$SETUP" -eq 1 ]] || [[ ! -d deps ]] || [[ ! -d _build ]] || [[ ! -d assets/node_modules ]]; then
+    ensure_setup
+  fi
+}
+
+build_dashboard() {
+  maybe_setup
+
+  log "Building the React dashboard bundle"
+  with_tools npm run dashboard:build
+
+  log "Building the Symphony escript"
+  with_tools mix escript.build
+}
+
+run_server() {
+  if [[ ! -f "$WORKFLOW" ]]; then
+    printf 'Workflow file not found: %s\n' "$WORKFLOW" >&2
+    exit 1
+  fi
+
+  log "Starting Symphony on http://localhost:${PORT}/ with ${WORKFLOW}"
+  if have_mise; then
+    exec mise exec -- ./bin/symphony \
+      --i-understand-that-this-will-be-running-without-the-usual-guardrails \
+      --port "$PORT" \
+      "$WORKFLOW"
+  fi
+
+  exec ./bin/symphony \
+    --i-understand-that-this-will-be-running-without-the-usual-guardrails \
+    --port "$PORT" \
+    "$WORKFLOW"
+}
+
+watch_dashboard() {
+  maybe_setup
+
+  if [[ ! -f "$WORKFLOW" ]]; then
+    printf 'Workflow file not found: %s\n' "$WORKFLOW" >&2
+    exit 1
+  fi
+
+  log "Starting Vite build watcher"
+  with_tools npm --prefix ./assets run build -- --watch &
+  WATCH_PID=$!
+
+  cleanup() {
+    if [[ -n "${WATCH_PID:-}" ]] && kill -0 "$WATCH_PID" >/dev/null 2>&1; then
+      kill "$WATCH_PID" >/dev/null 2>&1 || true
+      wait "$WATCH_PID" 2>/dev/null || true
+    fi
+  }
+
+  trap cleanup EXIT INT TERM
+
+  log "Building the Symphony escript"
+  with_tools mix escript.build
+
+  run_server
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    run|watch|build|test)
+      COMMAND="$1"
+      shift
+      ;;
+    --port)
+      PORT="${2:-}"
+      shift 2
+      ;;
+    --workflow)
+      WORKFLOW="${2:-}"
+      shift 2
+      ;;
+    --setup)
+      SETUP=1
+      shift
+      ;;
+    --help|-h)
+      usage
+      exit 0
+      ;;
+    *)
+      printf 'Unknown argument: %s\n\n' "$1" >&2
+      usage >&2
+      exit 1
+      ;;
+  esac
+done
+
+case "$COMMAND" in
+  run)
+    build_dashboard
+    run_server
+    ;;
+  watch)
+    watch_dashboard
+    ;;
+  build)
+    build_dashboard
+    ;;
+  test)
+    maybe_setup
+    log "Running dashboard frontend tests"
+    with_tools npm run dashboard:test
+    log "Running Phoenix dashboard integration tests"
+    with_tools mix test test/symphony_elixir/extensions_test.exs
+    ;;
+esac

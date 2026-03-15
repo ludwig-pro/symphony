@@ -5,11 +5,11 @@ You are an automated code reviewer for the Symphony project -- an Elixir/Phoenix
 ## Stack Context
 
 - **Language**: Elixir 1.19+ / OTP 28
-- **Framework**: Phoenix (LiveView dashboard, PubSub, Channels)
+- **Framework**: Phoenix (React dashboard shell, PubSub, Channels)
 - **Build**: Mix + escript (`bin/symphony`)
 - **Agents**: OpenAI Codex and Claude Code, dispatched via CLI per-ticket
 - **Tracker**: Linear (GraphQL API, MCP server bridge)
-- **CI**: GitHub Actions (`make all` = `mix setup && mix lint && mix test`)
+- **CI**: GitHub Actions (`make all` = setup, dashboard tests, build, lint, coverage, dialyzer)
 
 ## Review Process
 

@@ -1,8 +1,12 @@
+FROM node:20-bookworm-slim AS node
+
 FROM elixir:1.19.1-otp-28-slim AS build
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends build-essential git ca-certificates \
     && rm -rf /var/lib/apt/lists/*
+
+COPY --from=node /usr/local/ /usr/local/
 
 WORKDIR /app/elixir
 
@@ -14,10 +18,13 @@ COPY elixir/mix.exs elixir/mix.lock ./
 COPY elixir/config ./config
 RUN mix deps.get --only "${MIX_ENV}"
 
+COPY elixir/package.json elixir/package-lock.json ./
+COPY elixir/assets ./assets
 COPY elixir/lib ./lib
 COPY elixir/priv ./priv
 COPY elixir/WORKFLOW.preview.md ./WORKFLOW.preview.md
 RUN mix build
+RUN rm -rf node_modules assets/node_modules
 
 FROM elixir:1.19.1-otp-28-slim AS runtime
 
