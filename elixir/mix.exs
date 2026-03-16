@@ -83,7 +83,7 @@ defmodule SymphonyElixir.MixProject do
       build: ["assets.setup", "assets.build", "escript.build"],
       test: ["assets.setup", "assets.build", "test"],
       lint: ["specs.check", "credo --strict"],
-      "assets.setup": ["cmd --cd . npm ci", "cmd --cd . npm run dashboard:install"],
+      "assets.setup": ["cmd --cd . ./scripts/install-js-deps"],
       "assets.build": ["cmd --cd . npm run dashboard:build"]
     ]
   end

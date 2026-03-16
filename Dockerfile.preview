@@ -20,6 +20,7 @@ RUN mix deps.get --only "${MIX_ENV}"
 
 COPY elixir/package.json elixir/package-lock.json ./
 COPY elixir/assets ./assets
+COPY elixir/scripts ./scripts
 COPY elixir/lib ./lib
 COPY elixir/priv ./priv
 COPY elixir/WORKFLOW.preview.md ./WORKFLOW.preview.md

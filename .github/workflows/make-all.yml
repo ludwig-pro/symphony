@@ -34,5 +34,13 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-mix-
 
+      - name: Cache npm downloads
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-npm-${{ hashFiles('elixir/package-lock.json', 'elixir/assets/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-npm-
+
       - name: Verify make all
         run: make all
