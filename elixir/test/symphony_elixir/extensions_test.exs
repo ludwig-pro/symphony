@@ -844,38 +844,37 @@ defmodule SymphonyElixir.ExtensionsTest do
   end
 
   defp pull_requests_success_runner("glab", ["api", query]) do
-    cond do
-      String.starts_with?(query, "merge_requests?") and String.contains?(query, "author_username=gitlab-ludwig") ->
-        {:ok,
-         Jason.encode!([
-           %{
-             "id" => 501,
-             "iid" => 17,
-             "title" => "feat: wire gitlab merge requests",
-             "web_url" => "https://gitlab.com/acme/platform/-/merge_requests/17",
-             "state" => "opened",
-             "draft" => false,
-             "created_at" => "2026-03-21T12:00:00Z",
-             "updated_at" => "2026-03-22T12:00:00Z",
-             "references" => %{"short" => "!17", "full" => "acme/platform"},
-             "author" => %{
-               "username" => "gitlab-ludwig",
-               "name" => "GitLab Ludwig",
-               "web_url" => "https://gitlab.com/gitlab-ludwig"
-             },
-             "assignees" => [],
-             "reviewers" => [
-               %{
-                 "username" => "reviewer-1",
-                 "name" => "Reviewer One",
-                 "web_url" => "https://gitlab.com/reviewer-1"
-               }
-             ]
-           }
-         ])}
-
-      true ->
-        {:ok, "[]"}
+    if String.starts_with?(query, "merge_requests?") and
+         String.contains?(query, "author_username=gitlab-ludwig") do
+      {:ok,
+       Jason.encode!([
+         %{
+           "id" => 501,
+           "iid" => 17,
+           "title" => "feat: wire gitlab merge requests",
+           "web_url" => "https://gitlab.com/acme/platform/-/merge_requests/17",
+           "state" => "opened",
+           "draft" => false,
+           "created_at" => "2026-03-21T12:00:00Z",
+           "updated_at" => "2026-03-22T12:00:00Z",
+           "references" => %{"short" => "!17", "full" => "acme/platform"},
+           "author" => %{
+             "username" => "gitlab-ludwig",
+             "name" => "GitLab Ludwig",
+             "web_url" => "https://gitlab.com/gitlab-ludwig"
+           },
+           "assignees" => [],
+           "reviewers" => [
+             %{
+               "username" => "reviewer-1",
+               "name" => "Reviewer One",
+               "web_url" => "https://gitlab.com/reviewer-1"
+             }
+           ]
+         }
+       ])}
+    else
+      {:ok, "[]"}
     end
   end
 

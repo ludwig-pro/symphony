@@ -87,51 +87,21 @@ defmodule SymphonyElixir.PullRequests do
     with {:ok, _path} <- ensure_command_available("gh", "Le CLI GitHub (`gh`) n'est pas installé."),
          :ok <- ensure_authenticated("gh", ["auth", "status"], "GitHub CLI n'est pas authentifié.") do
       if bucket_supported?("github", bucket) do
-        case run_command("gh", github_search_args(bucket, state)) do
-          {:ok, output} ->
-            case Jason.decode(output) do
-              {:ok, items} when is_list(items) ->
-                %{
-                  status: available_provider_status("github", bucket),
-                  items: Enum.map(items, &normalize_github_item/1)
-                }
-
-              _ ->
-                %{
-                  status:
-                    error_provider_status(
-                      "github",
-                      bucket,
-                      true,
-                      "Réponse JSON GitHub invalide."
-                    ),
-                  items: []
-                }
-            end
-
-          {:error, {_status, output}} ->
-            %{
-              status:
-                error_provider_status(
-                  "github",
-                  bucket,
-                  true,
-                  command_error_message(output, "Impossible de récupérer les pull requests GitHub.")
-                ),
-              items: []
-            }
-        end
+        "gh"
+        |> run_command(github_search_args(bucket, state))
+        |> normalize_provider_response(
+          "github",
+          bucket,
+          &normalize_github_item/1,
+          "Réponse JSON GitHub invalide.",
+          "Impossible de récupérer les pull requests GitHub."
+        )
       else
-        %{
-          status:
-            unsupported_provider_status(
-              "github",
-              bucket,
-              true,
-              "Ce filtre n'est pas pris en charge par GitHub."
-            ),
-          items: []
-        }
+        unsupported_result(
+          "github",
+          bucket,
+          "Ce filtre n'est pas pris en charge par GitHub."
+        )
       end
     else
       {:error, {:unavailable, message}} ->
@@ -146,60 +116,14 @@ defmodule SymphonyElixir.PullRequests do
     with {:ok, _path} <- ensure_command_available("glab", "Le CLI GitLab (`glab`) n'est pas installé."),
          :ok <- ensure_authenticated("glab", ["auth", "status"], "GitLab CLI n'est pas authentifié.") do
       if bucket_supported?("gitlab", bucket) do
-        case resolve_gitlab_username() do
-          {:ok, username} ->
-            case run_command("glab", gitlab_merge_request_args(bucket, state, username)) do
-              {:ok, output} ->
-                case Jason.decode(output) do
-                  {:ok, items} when is_list(items) ->
-                    %{
-                      status: available_provider_status("gitlab", bucket),
-                      items: Enum.map(items, &normalize_gitlab_item/1)
-                    }
-
-                  _ ->
-                    %{
-                      status:
-                        error_provider_status(
-                          "gitlab",
-                          bucket,
-                          true,
-                          "Réponse JSON GitLab invalide."
-                        ),
-                      items: []
-                    }
-                end
-
-              {:error, {_status, output}} ->
-                %{
-                  status:
-                    error_provider_status(
-                      "gitlab",
-                      bucket,
-                      true,
-                      command_error_message(output, "Impossible de récupérer les merge requests GitLab.")
-                    ),
-                  items: []
-                }
-            end
-
-          {:error, message} ->
-            %{
-              status: error_provider_status("gitlab", bucket, true, message),
-              items: []
-            }
-        end
+        bucket
+        |> fetch_gitlab_supported_bucket(state)
       else
-        %{
-          status:
-            unsupported_provider_status(
-              "gitlab",
-              bucket,
-              true,
-              "GitLab ne prend pas encore en charge le filtre Mentioned dans cette V1."
-            ),
-          items: []
-        }
+        unsupported_result(
+          "gitlab",
+          bucket,
+          "GitLab ne prend pas encore en charge le filtre Mentioned dans cette V1."
+        )
       end
     else
       {:error, {:unavailable, message}} ->
@@ -260,10 +184,12 @@ defmodule SymphonyElixir.PullRequests do
   defp resolve_gitlab_username do
     case run_command("glab", ["api", "user"]) do
       {:ok, output} ->
-        with {:ok, %{"username" => username}} when is_binary(username) <- Jason.decode(output) do
-          {:ok, username}
-        else
-          _ -> {:error, "Impossible de résoudre l'utilisateur GitLab courant."}
+        case Jason.decode(output) do
+          {:ok, %{"username" => username}} when is_binary(username) ->
+            {:ok, username}
+
+          _ ->
+            {:error, "Impossible de résoudre l'utilisateur GitLab courant."}
         end
 
       {:error, {_status, output}} ->
@@ -316,27 +242,12 @@ defmodule SymphonyElixir.PullRequests do
   defp normalize_actor(nil), do: nil
 
   defp normalize_actor(actor) when is_map(actor) do
-    login =
-      string_value(Map.get(actor, "login")) ||
-        string_value(Map.get(actor, "username")) ||
-        string_value(Map.get(actor, :login)) ||
-        string_value(Map.get(actor, :username))
+    case actor_login(actor) do
+      login when is_binary(login) and login != "" ->
+        %{login: login, display_name: actor_display_name(actor, login), url: actor_url(actor)}
 
-    display_name =
-      string_value(Map.get(actor, "name")) ||
-        string_value(Map.get(actor, :name)) ||
-        login
-
-    url =
-      string_value(Map.get(actor, "url")) ||
-        string_value(Map.get(actor, "web_url")) ||
-        string_value(Map.get(actor, :url)) ||
-        string_value(Map.get(actor, :web_url))
-
-    if is_binary(login) and login != "" do
-      %{login: login, display_name: display_name, url: url}
-    else
-      nil
+      _ ->
+        nil
     end
   end
 
@@ -452,18 +363,101 @@ defmodule SymphonyElixir.PullRequests do
         runner.(command, args)
 
       _ ->
-        case command_path(command) do
-          nil ->
-            {:error, {:enoent, ""}}
-
-          path ->
-            case System.cmd(path, args, stderr_to_stdout: true) do
-              {output, 0} -> {:ok, output}
-              {output, status} -> {:error, {status, output}}
-            end
-        end
+        run_system_command(command, args)
     end
   end
+
+  defp fetch_gitlab_supported_bucket(bucket, state) do
+    case resolve_gitlab_username() do
+      {:ok, username} ->
+        "glab"
+        |> run_command(gitlab_merge_request_args(bucket, state, username))
+        |> normalize_provider_response(
+          "gitlab",
+          bucket,
+          &normalize_gitlab_item/1,
+          "Réponse JSON GitLab invalide.",
+          "Impossible de récupérer les merge requests GitLab."
+        )
+
+      {:error, message} ->
+        %{status: error_provider_status("gitlab", bucket, true, message), items: []}
+    end
+  end
+
+  defp normalize_provider_response(
+         {:ok, output},
+         provider,
+         bucket,
+         normalizer,
+         invalid_json_message,
+         _command_failure_message
+       ) do
+    case Jason.decode(output) do
+      {:ok, items} when is_list(items) ->
+        %{
+          status: available_provider_status(provider, bucket),
+          items: Enum.map(items, normalizer)
+        }
+
+      _ ->
+        %{status: error_provider_status(provider, bucket, true, invalid_json_message), items: []}
+    end
+  end
+
+  defp normalize_provider_response(
+         {:error, {_status, output}},
+         provider,
+         bucket,
+         _normalizer,
+         _invalid_json_message,
+         command_failure_message
+       ) do
+    %{
+      status:
+        error_provider_status(
+          provider,
+          bucket,
+          true,
+          command_error_message(output, command_failure_message)
+        ),
+      items: []
+    }
+  end
+
+  defp unsupported_result(provider, bucket, message) do
+    %{
+      status: unsupported_provider_status(provider, bucket, true, message),
+      items: []
+    }
+  end
+
+  defp actor_login(actor) do
+    actor_field(actor, ["login", "username"], [:login, :username])
+  end
+
+  defp actor_display_name(actor, fallback) do
+    actor_field(actor, ["name"], [:name]) || fallback
+  end
+
+  defp actor_url(actor) do
+    actor_field(actor, ["url", "web_url"], [:url, :web_url])
+  end
+
+  defp actor_field(actor, string_keys, atom_keys) do
+    Enum.find_value(string_keys, &(string_value(Map.get(actor, &1)))) ||
+      Enum.find_value(atom_keys, &(string_value(Map.get(actor, &1))))
+  end
+
+  defp run_system_command(command, args) do
+    case command_path(command) do
+      nil -> {:error, {:enoent, ""}}
+      path -> normalize_system_command_result(System.cmd(path, args, stderr_to_stdout: true))
+    end
+  end
+
+  defp normalize_system_command_result({output, 0}), do: {:ok, output}
+  defp normalize_system_command_result({output, status}), do: {:error, {status, output}}
 
   defp command_error_message(output, fallback) do
     case output |> to_string() |> String.trim() do
