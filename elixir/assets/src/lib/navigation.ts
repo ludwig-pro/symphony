@@ -5,6 +5,7 @@ import {
   DatabaseZapIcon,
   FolderKanbanIcon,
   GaugeIcon,
+  GitPullRequestIcon,
   WaypointsIcon,
   type LucideIcon,
 } from "lucide-react"
@@ -12,6 +13,7 @@ import {
 export type DashboardPageId =
   | "overview"
   | "sessions"
+  | "pull-requests"
   | "agents"
   | "limits"
   | "retries"
@@ -50,6 +52,16 @@ export const dashboardPages: DashboardPage[] = [
     description: "Suivi détaillé des issues en cours, de la durée d'exécution, des tours et de l'usage des jetons.",
     eyebrow: "Exécution en cours",
     icon: ActivityIcon,
+  },
+  {
+    id: "pull-requests",
+    path: "/pull-requests",
+    label: "Pull Requests",
+    title: "Pull Requests",
+    description:
+      "Vue unifiée GitHub et GitLab pour suivre les PR et MR créées, assignées, mentionnées ou en review request.",
+    eyebrow: "Revue de code",
+    icon: GitPullRequestIcon,
   },
   {
     id: "agents",

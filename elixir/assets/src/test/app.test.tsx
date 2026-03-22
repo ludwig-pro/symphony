@@ -96,6 +96,117 @@ const baseSnapshot = {
   },
 }
 
+const pullRequestsSnapshot = {
+  generated_at: "2026-03-22T12:00:00Z",
+  filters: {
+    provider: "all",
+    bucket: "created",
+    state: "open",
+  },
+  providers: {
+    github: {
+      available: true,
+      authenticated: true,
+      supported: true,
+      supported_buckets: ["created", "assigned", "mentioned", "review_requested"],
+      warning: null,
+      error: null,
+    },
+    gitlab: {
+      available: true,
+      authenticated: true,
+      supported: true,
+      supported_buckets: ["created", "assigned", "review_requested"],
+      warning: null,
+      error: null,
+    },
+  },
+  items: [
+    {
+      provider: "gitlab",
+      id: "501",
+      number: 17,
+      reference: "!17",
+      repository: "acme/platform",
+      title: "feat: wire gitlab merge requests",
+      url: "https://gitlab.com/acme/platform/-/merge_requests/17",
+      author: {
+        login: "gitlab-ludwig",
+        display_name: "GitLab Ludwig",
+        url: "https://gitlab.com/gitlab-ludwig",
+      },
+      assignees: [],
+      reviewers: [
+        {
+          login: "reviewer-1",
+          display_name: "Reviewer One",
+          url: "https://gitlab.com/reviewer-1",
+        },
+      ],
+      state: "open",
+      is_draft: false,
+      created_at: "2026-03-21T12:00:00Z",
+      updated_at: "2026-03-22T12:00:00Z",
+    },
+    {
+      provider: "github",
+      id: "PR_kwDOAA",
+      number: 7,
+      reference: "#7",
+      repository: "acme/web",
+      title: "feat: ship dashboard PR page",
+      url: "https://github.com/acme/web/pull/7",
+      author: {
+        login: "ludwig-pro",
+        display_name: "ludwig-pro",
+        url: "https://github.com/ludwig-pro",
+      },
+      assignees: [
+        {
+          login: "ludwig-pro",
+          display_name: "Ludwig",
+          url: "https://github.com/ludwig-pro",
+        },
+      ],
+      reviewers: [],
+      state: "open",
+      is_draft: false,
+      created_at: "2026-03-21T09:00:00Z",
+      updated_at: "2026-03-22T10:00:00Z",
+    },
+  ],
+  total_count: 2,
+}
+
+const pullRequestsUnsupportedSnapshot = {
+  generated_at: "2026-03-22T12:10:00Z",
+  filters: {
+    provider: "gitlab",
+    bucket: "mentioned",
+    state: "open",
+  },
+  providers: {
+    github: {
+      available: false,
+      authenticated: false,
+      supported: true,
+      supported_buckets: ["created", "assigned", "mentioned", "review_requested"],
+      warning: null,
+      error: null,
+    },
+    gitlab: {
+      available: false,
+      authenticated: true,
+      supported: false,
+      supported_buckets: ["created", "assigned", "review_requested"],
+      warning: "GitLab ne prend pas encore en charge le filtre Mentioned dans cette V1.",
+      error: null,
+    },
+  },
+  items: [],
+  total_count: 0,
+}
+
 function jsonResponse(body: unknown, init?: ResponseInit) {
   return Promise.resolve(
     new Response(JSON.stringify(body), {
@@ -293,6 +404,104 @@ describe("dashboard app", () => {
     expect(await screen.findByRole("heading", { name: "Contrôle agent" })).toBeInTheDocument()
     expect(window.location.pathname).toBe("/agents")
     expect(screen.queryByText("Issues en attente")).not.toBeInTheDocument()
+  })
+
+  it("loads pull requests only when the page is active and refetches when filters change", async () => {
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const url = String(input)
+
+      if (url === "/api/v1/state") {
+        return jsonResponse(baseSnapshot)
+      }
+
+      if (
+        url ===
+        "/api/v1/pull-requests?provider=all&bucket=created&state=open"
+      ) {
+        return jsonResponse(pullRequestsSnapshot)
+      }
+
+      if (
+        url ===
+        "/api/v1/pull-requests?provider=gitlab&bucket=created&state=open"
+      ) {
+        return jsonResponse({
+          ...pullRequestsSnapshot,
+          filters: {
+            provider: "gitlab",
+            bucket: "created",
+            state: "open",
+          },
+          items: pullRequestsSnapshot.items.filter(
+            (item) => item.provider === "gitlab",
+          ),
+          total_count: 1,
+        })
+      }
+
+      if (
+        url ===
+        "/api/v1/pull-requests?provider=gitlab&bucket=mentioned&state=open"
+      ) {
+        return jsonResponse(pullRequestsUnsupportedSnapshot)
+      }
+
+      throw new Error(`Unexpected request: ${url}`)
+    })
+
+    vi.stubGlobal("fetch", fetchMock)
+
+    const user = userEvent.setup()
+    render(<App />)
+
+    await screen.findByText("MT-HTTP")
+
+    expect(fetchMock).not.toHaveBeenCalledWith(
+      expect.stringContaining("/api/v1/pull-requests"),
+      expect.anything(),
+    )
+
+    await user.click(screen.getByRole("link", { name: "Pull Requests" }))
+
+    expect(
+      await screen.findByRole("heading", { name: "Pull Requests" }),
+    ).toBeInTheDocument()
+    expect(
+      await screen.findByText("feat: ship dashboard PR page"),
+    ).toBeInTheDocument()
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/v1/pull-requests?provider=all&bucket=created&state=open",
+        expect.objectContaining({
+          headers: { accept: "application/json" },
+        }),
+      )
+    })
+
+    await user.click(screen.getByRole("button", { name: "GitLab" }))
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/v1/pull-requests?provider=gitlab&bucket=created&state=open",
+        expect.objectContaining({
+          headers: { accept: "application/json" },
+        }),
+      )
+    })
+
+    await user.click(screen.getByRole("button", { name: "Mentioned" }))
+
+    expect(
+      await screen.findByText(
+        "GitLab ne prend pas encore en charge le filtre Mentioned dans cette V1.",
+      ),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        "Aucune pull request ou merge request ne correspond aux filtres courants.",
+      ),
+    ).toBeInTheDocument()
   })
 
   it("does not issue concurrent polling requests and aborts on unmount", async () => {

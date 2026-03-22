@@ -72,6 +72,13 @@ export function SiteHeader({
             <Button asChild variant="outline" size="sm">
               <a href="/api/v1/config/agent">API des agents</a>
             </Button>
+            {page.id === "pull-requests" ? (
+              <Button asChild variant="outline" size="sm">
+                <a href="/api/v1/pull-requests?provider=all&bucket=created&state=open">
+                  API Pull Requests
+                </a>
+              </Button>
+            ) : null}
             {primaryIssue ? (
               <Button asChild size="sm">
                 <a href={`/api/v1/${primaryIssue.issue_identifier}`}>

@@ -426,6 +426,100 @@ defmodule SymphonyElixir.ExtensionsTest do
              json_response(conn, 202)
   end
 
+  test "phoenix observability api exposes aggregated pull requests and validates filters" do
+    Application.put_env(:symphony_elixir, :pull_requests_command_path_resolver, &pull_requests_path_resolver/1)
+    Application.put_env(:symphony_elixir, :pull_requests_cli_runner, &pull_requests_success_runner/2)
+
+    start_test_endpoint(orchestrator: Module.concat(__MODULE__, :PullRequestOrchestrator), snapshot_timeout_ms: 5)
+
+    payload =
+      json_response(
+        get(build_conn(), "/api/v1/pull-requests", %{
+          "provider" => "all",
+          "bucket" => "created",
+          "state" => "open"
+        }),
+        200
+      )
+
+    assert payload["generated_at"]
+    assert payload["filters"] == %{"provider" => "all", "bucket" => "created", "state" => "open"}
+    assert payload["total_count"] == 2
+    assert payload["providers"]["github"]["available"] == true
+    assert payload["providers"]["github"]["authenticated"] == true
+    assert payload["providers"]["github"]["supported"] == true
+    assert payload["providers"]["gitlab"]["available"] == true
+    assert payload["providers"]["gitlab"]["authenticated"] == true
+    assert payload["providers"]["gitlab"]["supported"] == true
+
+    [gitlab_item, github_item] = payload["items"]
+
+    assert gitlab_item["provider"] == "gitlab"
+    assert gitlab_item["reference"] == "!17"
+    assert gitlab_item["repository"] == "acme/platform"
+    assert gitlab_item["author"]["login"] == "gitlab-ludwig"
+    assert gitlab_item["reviewers"] == [%{"display_name" => "Reviewer One", "login" => "reviewer-1", "url" => "https://gitlab.com/reviewer-1"}]
+
+    assert github_item["provider"] == "github"
+    assert github_item["reference"] == "#7"
+    assert github_item["repository"] == "acme/web"
+    assert github_item["author"]["login"] == "ludwig-pro"
+    assert github_item["assignees"] == [%{"display_name" => "Ludwig", "login" => "ludwig-pro", "url" => "https://github.com/ludwig-pro"}]
+
+    invalid_provider =
+      json_response(
+        get(build_conn(), "/api/v1/pull-requests", %{"provider" => "bitbucket"}),
+        400
+      )
+
+    assert invalid_provider == %{
+             "error" => %{
+               "code" => "invalid_provider",
+               "message" => "Le paramètre `provider` est invalide."
+             }
+           }
+  end
+
+  test "phoenix observability api preserves partial provider errors and unsupported gitlab mentioned bucket" do
+    Application.put_env(:symphony_elixir, :pull_requests_command_path_resolver, &pull_requests_path_resolver/1)
+    Application.put_env(:symphony_elixir, :pull_requests_cli_runner, &pull_requests_partial_runner/2)
+
+    start_test_endpoint(orchestrator: Module.concat(__MODULE__, :PullRequestErrorOrchestrator), snapshot_timeout_ms: 5)
+
+    payload =
+      json_response(
+        get(build_conn(), "/api/v1/pull-requests", %{
+          "provider" => "all",
+          "bucket" => "review_requested",
+          "state" => "open"
+        }),
+        200
+      )
+
+    assert payload["total_count"] == 1
+    assert payload["providers"]["github"]["available"] == true
+    assert payload["providers"]["gitlab"]["available"] == false
+    assert payload["providers"]["gitlab"]["authenticated"] == false
+    assert payload["providers"]["gitlab"]["error"] == "GitLab CLI n'est pas authentifié."
+
+    Application.put_env(:symphony_elixir, :pull_requests_cli_runner, &pull_requests_success_runner/2)
+
+    unsupported =
+      json_response(
+        get(build_conn(), "/api/v1/pull-requests", %{
+          "provider" => "gitlab",
+          "bucket" => "mentioned",
+          "state" => "open"
+        }),
+        200
+      )
+
+    assert unsupported["total_count"] == 0
+    assert unsupported["providers"]["gitlab"]["supported"] == false
+    assert unsupported["providers"]["gitlab"]["authenticated"] == true
+    assert unsupported["providers"]["gitlab"]["warning"] =~ "Mentioned"
+  end
+
   test "phoenix observability api exposes and updates the active agent preset" do
     start_test_endpoint(orchestrator: Module.concat(__MODULE__, :AgentConfigOrchestrator), snapshot_timeout_ms: 5)
 
@@ -456,6 +550,9 @@ defmodule SymphonyElixir.ExtensionsTest do
     start_test_endpoint(orchestrator: unavailable_orchestrator, snapshot_timeout_ms: 5)
 
     assert json_response(post(build_conn(), "/api/v1/state", %{}), 405) ==
+             %{"error" => %{"code" => "method_not_allowed", "message" => "Méthode non autorisée"}}
+
+    assert json_response(post(build_conn(), "/api/v1/pull-requests", %{}), 405) ==
              %{"error" => %{"code" => "method_not_allowed", "message" => "Méthode non autorisée"}}
 
     assert json_response(get(build_conn(), "/api/v1/refresh"), 405) ==
@@ -532,7 +629,7 @@ defmodule SymphonyElixir.ExtensionsTest do
     refute html =~ "/vendor/phoenix/phoenix.js"
     refute html =~ "/vendor/phoenix_live_view/phoenix_live_view.js"
 
-    for path <- ["/sessions", "/agents", "/limits", "/retries"] do
+    for path <- ["/sessions", "/agents", "/limits", "/retries", "/pull-requests"] do
       page_html = html_response(get(build_conn(), path), 200)
       assert page_html =~ "Observabilité Symphony"
       assert page_html =~ ~s(data-dashboard-root="react")
@@ -690,6 +787,99 @@ defmodule SymphonyElixir.ExtensionsTest do
       reason: nil
     }
   end
+
+  defp pull_requests_path_resolver("gh"), do: "/usr/bin/gh"
+  defp pull_requests_path_resolver("glab"), do: "/usr/bin/glab"
+  defp pull_requests_path_resolver(_command), do: nil
+
+  defp pull_requests_success_runner("gh", ["auth", "status"]), do: {:ok, "github auth ok"}
+  defp pull_requests_success_runner("glab", ["auth", "status"]), do: {:ok, "gitlab auth ok"}
+  defp pull_requests_success_runner("glab", ["api", "user"]), do: {:ok, ~s({"username":"gitlab-ludwig"})}
+
+  defp pull_requests_success_runner("gh", args) do
+    joined = Enum.join(args, " ")
+
+    cond do
+      String.contains?(joined, "--author @me") ->
+        {:ok,
+         Jason.encode!([
+           %{
+             "id" => "PR_kwDOAA",
+             "number" => 7,
+             "title" => "feat: ship dashboard PR page",
+             "url" => "https://github.com/acme/web/pull/7",
+             "state" => "OPEN",
+             "isDraft" => false,
+             "createdAt" => "2026-03-21T09:00:00Z",
+             "updatedAt" => "2026-03-22T10:00:00Z",
+             "repository" => %{"nameWithOwner" => "acme/web"},
+             "author" => %{"login" => "ludwig-pro", "url" => "https://github.com/ludwig-pro"},
+             "assignees" => [%{"login" => "ludwig-pro", "name" => "Ludwig", "url" => "https://github.com/ludwig-pro"}]
+           }
+         ])}
+
+      String.contains?(joined, "--review-requested @me") ->
+        {:ok,
+         Jason.encode!([
+           %{
+             "id" => "PR_kwDOAB",
+             "number" => 19,
+             "title" => "fix: approval flow",
+             "url" => "https://github.com/acme/api/pull/19",
+             "state" => "OPEN",
+             "isDraft" => false,
+             "createdAt" => "2026-03-21T11:00:00Z",
+             "updatedAt" => "2026-03-22T09:00:00Z",
+             "repository" => %{"nameWithOwner" => "acme/api"},
+             "author" => %{"login" => "teammate", "url" => "https://github.com/teammate"},
+             "assignees" => []
+           }
+         ])}
+
+      true ->
+        {:ok, "[]"}
+    end
+  end
+
+  defp pull_requests_success_runner("glab", ["api", query]) do
+    cond do
+      String.starts_with?(query, "merge_requests?") and String.contains?(query, "author_username=gitlab-ludwig") ->
+        {:ok,
+         Jason.encode!([
+           %{
+             "id" => 501,
+             "iid" => 17,
+             "title" => "feat: wire gitlab merge requests",
+             "web_url" => "https://gitlab.com/acme/platform/-/merge_requests/17",
+             "state" => "opened",
+             "draft" => false,
+             "created_at" => "2026-03-21T12:00:00Z",
+             "updated_at" => "2026-03-22T12:00:00Z",
+             "references" => %{"short" => "!17", "full" => "acme/platform"},
+             "author" => %{
+               "username" => "gitlab-ludwig",
+               "name" => "GitLab Ludwig",
+               "web_url" => "https://gitlab.com/gitlab-ludwig"
+             },
+             "assignees" => [],
+             "reviewers" => [
+               %{
+                 "username" => "reviewer-1",
+                 "name" => "Reviewer One",
+                 "web_url" => "https://gitlab.com/reviewer-1"
+               }
+             ]
+           }
+         ])}
+
+      true ->
+        {:ok, "[]"}
+    end
+  end
+
+  defp pull_requests_partial_runner("gh", args), do: pull_requests_success_runner("gh", args)
+  defp pull_requests_partial_runner("glab", ["auth", "status"]), do: {:error, {1, "not logged in"}}
+  defp pull_requests_partial_runner("glab", args), do: pull_requests_success_runner("glab", args)
 
   defp assert_agent_payload(agent_payload, current_id) do
     assert agent_payload["current"]["id"] == current_id

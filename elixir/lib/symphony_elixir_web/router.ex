@@ -19,6 +19,7 @@ defmodule SymphonyElixirWeb.Router do
     get("/agents", DashboardController, :index)
     get("/limits", DashboardController, :index)
     get("/retries", DashboardController, :index)
+    get("/pull-requests", DashboardController, :index)
   end
 
   scope "/", SymphonyElixirWeb do
@@ -28,9 +29,11 @@ defmodule SymphonyElixirWeb.Router do
     post("/api/v1/config/agent", ObservabilityApiController, :update_agent)
     match(:*, "/api/v1/config/agent", ObservabilityApiController, :method_not_allowed)
     get("/api/v1/state", ObservabilityApiController, :state)
+    get("/api/v1/pull-requests", ObservabilityApiController, :pull_requests)
 
     match(:*, "/", ObservabilityApiController, :method_not_allowed)
     match(:*, "/api/v1/state", ObservabilityApiController, :method_not_allowed)
+    match(:*, "/api/v1/pull-requests", ObservabilityApiController, :method_not_allowed)
     post("/api/v1/refresh", ObservabilityApiController, :refresh)
     match(:*, "/api/v1/refresh", ObservabilityApiController, :method_not_allowed)
     get("/api/v1/:issue_identifier", ObservabilityApiController, :issue)

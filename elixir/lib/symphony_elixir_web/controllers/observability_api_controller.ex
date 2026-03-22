@@ -6,12 +6,23 @@ defmodule SymphonyElixirWeb.ObservabilityApiController do
   use Phoenix.Controller, formats: [:json]
 
   alias Plug.Conn
-  alias SymphonyElixir.AgentConfig
+  alias SymphonyElixir.{AgentConfig, PullRequests}
   alias SymphonyElixirWeb.{Endpoint, Presenter}
 
   @spec state(Conn.t(), map()) :: Conn.t()
   def state(conn, _params) do
     json(conn, Presenter.state_payload(orchestrator(), snapshot_timeout_ms()))
+  end
+
+  @spec pull_requests(Conn.t(), map()) :: Conn.t()
+  def pull_requests(conn, params) do
+    case pull_request_filters(params) do
+      {:ok, filters} ->
+        json(conn, PullRequests.list(filters))
+
+      {:error, {code, message}} ->
+        error_response(conn, 400, code, message)
+    end
   end
 
   @spec agent(Conn.t(), map()) :: Conn.t()
@@ -83,5 +94,31 @@ defmodule SymphonyElixirWeb.ObservabilityApiController do
 
   defp snapshot_timeout_ms do
     Endpoint.config(:snapshot_timeout_ms) || 15_000
+  end
+
+  defp pull_request_filters(params) do
+    provider = Map.get(params, "provider", "all")
+    bucket = Map.get(params, "bucket", "created")
+    state = Map.get(params, "state", "open")
+
+    with :ok <- validate_enum(provider, ["all", "github", "gitlab"], "invalid_provider", "Le paramètre `provider` est invalide."),
+         :ok <-
+           validate_enum(
+             bucket,
+             ["created", "assigned", "mentioned", "review_requested"],
+             "invalid_bucket",
+             "Le paramètre `bucket` est invalide."
+           ),
+         :ok <- validate_enum(state, ["open", "closed"], "invalid_state", "Le paramètre `state` est invalide.") do
+      {:ok, %{provider: provider, bucket: bucket, state: state}}
+    end
+  end
+
+  defp validate_enum(value, allowed, code, message) do
+    if value in allowed do
+      :ok
+    else
+      {:error, {code, message}}
+    end
   end
 end
