@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+STAMP_NAME=".symphony-install-fingerprint"
+
+log() {
+  printf '==> %s\n' "$*"
+}
+
+fingerprint_dir() {
+  local dir="$1"
+
+  node - "$dir/package.json" "$dir/package-lock.json" <<'NODE'
+const crypto = require("node:crypto");
+const fs = require("node:fs");
+
+const files = process.argv.slice(2);
+const hash = crypto.createHash("sha256");
+
+hash.update(
+  `${process.platform}\n${process.arch}\n${process.versions.modules ?? "unknown"}\n`
+);
+
+for (const file of files) {
+  hash.update(fs.readFileSync(file));
+}
+
+process.stdout.write(hash.digest("hex"));
+NODE
+}
+
+install_dir() {
+  local dir="$1"
+  local label="$2"
+  local fingerprint
+  local stamp_path="$dir/node_modules/$STAMP_NAME"
+
+  fingerprint="$(fingerprint_dir "$dir")"
+
+  if [[ -d "$dir/node_modules" ]] && [[ -f "$stamp_path" ]] && [[ "$(<"$stamp_path")" == "$fingerprint" ]]; then
+    log "Skipping npm ci for ${label}; dependencies are already current"
+    return
+  fi
+
+  log "Installing ${label} dependencies"
+  (
+    cd "$dir"
+    npm ci
+  )
+
+  printf '%s' "$fingerprint" > "$stamp_path"
+}
+
+install_dir "$ROOT_DIR" "root"
+install_dir "$ROOT_DIR/assets" "dashboard"
