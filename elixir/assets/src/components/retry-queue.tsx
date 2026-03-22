@@ -1,32 +1,34 @@
-import { Clock4Icon, ExternalLinkIcon, RotateCcwIcon } from "lucide-react"
+import { Clock4Icon, ExternalLinkIcon, RotateCcwIcon } from "lucide-react";
 
-import { issueJsonPath, type RetryEntry } from "@/lib/dashboard"
-import { Badge } from "@/components/ui/badge"
+import { issueJsonPath, type RetryEntry } from "@/lib/dashboard";
+import { Badge } from "@/components/ui/badge";
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card"
+} from "@/components/ui/card";
 
 type RetryQueueProps = {
-  entries: RetryEntry[]
-}
+  entries: RetryEntry[];
+};
 
 export function RetryQueue({ entries }: RetryQueueProps) {
   return (
-    <Card className="shadow-sm" id="retrying">
+    <Card id="retrying">
       <CardHeader>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <CardDescription>File de relance</CardDescription>
+            <CardDescription className="dashboard-kicker">
+              File de relance
+            </CardDescription>
             <CardTitle>Issues en attente</CardTitle>
-            <p className="mt-2 text-sm text-muted-foreground">
+            <p className="mt-2 text-sm leading-6 text-muted-foreground">
               Issues en attente de la prochaine fenêtre de relance.
             </p>
           </div>
-          <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100">
+          <Badge className="bg-warning/14 text-[color:var(--color-warning)] hover:bg-warning/14">
             <RotateCcwIcon className="size-3.5" />
             {entries.length} en attente
           </Badge>
@@ -34,7 +36,7 @@ export function RetryQueue({ entries }: RetryQueueProps) {
       </CardHeader>
       <CardContent>
         {entries.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-border px-4 py-8 text-sm text-muted-foreground">
+          <div className="dashboard-subtle-panel px-4 py-8 text-sm text-muted-foreground">
             Aucune issue n'est actuellement en temporisation.
           </div>
         ) : (
@@ -42,7 +44,7 @@ export function RetryQueue({ entries }: RetryQueueProps) {
             {entries.map((entry) => (
               <article
                 key={`${entry.issue_identifier}-${entry.attempt}`}
-                className="rounded-2xl border border-border/80 bg-card/80 p-4 shadow-xs"
+                className="dashboard-subtle-panel p-4 transition-transform duration-200 hover:-translate-y-0.5"
               >
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="grid gap-1">
@@ -57,7 +59,7 @@ export function RetryQueue({ entries }: RetryQueueProps) {
                       <ExternalLinkIcon className="size-3.5" />
                     </a>
                   </div>
-                  <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100">
+                  <Badge className="bg-warning/14 text-[color:var(--color-warning)] hover:bg-warning/14">
                     Tentative {entry.attempt}
                   </Badge>
                 </div>
@@ -83,5 +85,5 @@ export function RetryQueue({ entries }: RetryQueueProps) {
         )}
       </CardContent>
     </Card>
-  )
+  );
 }

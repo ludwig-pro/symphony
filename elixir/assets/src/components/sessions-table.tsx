@@ -1,5 +1,5 @@
-import { ClipboardIcon, ExternalLinkIcon } from "lucide-react"
-import { toast } from "sonner"
+import { ClipboardIcon, ExternalLinkIcon } from "lucide-react";
+import { toast } from "sonner";
 
 import {
   formatInt,
@@ -8,17 +8,17 @@ import {
   stateBadgeLabel,
   stateTone,
   type RunningEntry,
-} from "@/lib/dashboard"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
+} from "@/lib/dashboard";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card"
-import { Skeleton } from "@/components/ui/skeleton"
+} from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
   TableBody,
@@ -26,31 +26,31 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table"
+} from "@/components/ui/table";
 
 type SessionsTableProps = {
-  entries: RunningEntry[]
-  trackedIssueCount: number
-  isLoading: boolean
-  now: number
-}
+  entries: RunningEntry[];
+  trackedIssueCount: number;
+  isLoading: boolean;
+  now: number;
+};
 
 function stateBadgeClasses(entryState: string | null) {
-  const tone = stateTone(entryState)
+  const tone = stateTone(entryState);
 
   if (tone === "positive") {
-    return "border-emerald-200 bg-emerald-50 text-emerald-700"
+    return "border-success/20 bg-success/10 text-success";
   }
 
   if (tone === "warning") {
-    return "border-amber-200 bg-amber-50 text-amber-700"
+    return "border-warning/20 bg-warning/10 text-[color:var(--color-warning)]";
   }
 
   if (tone === "danger") {
-    return "border-rose-200 bg-rose-50 text-rose-700"
+    return "border-danger/20 bg-danger/10 text-danger";
   }
 
-  return "border-slate-200 bg-slate-100 text-slate-700"
+  return "border-border bg-secondary text-foreground";
 }
 
 export function SessionsTable({
@@ -61,25 +61,30 @@ export function SessionsTable({
 }: SessionsTableProps) {
   const copySessionId = async (sessionId: string) => {
     try {
-      await navigator.clipboard.writeText(sessionId)
-      toast.success("ID de session copié.")
+      await navigator.clipboard.writeText(sessionId);
+      toast.success("ID de session copié.");
     } catch {
-      toast.error("Impossible de copier l'ID de session.")
+      toast.error("Impossible de copier l'ID de session.");
     }
-  }
+  };
 
   return (
-    <Card className="shadow-sm" id="sessions">
+    <Card id="sessions">
       <CardHeader>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <CardDescription>Sessions actives</CardDescription>
+            <CardDescription className="dashboard-kicker">
+              Sessions actives
+            </CardDescription>
             <CardTitle>Issues en cours</CardTitle>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Issues actives, dernière activité agent connue et usage des jetons.
+            <p className="mt-2 text-sm leading-6 text-muted-foreground">
+              Issues actives, dernière activité agent connue et usage des
+              jetons.
             </p>
           </div>
-          <Badge variant="secondary">{trackedIssueCount} suivies</Badge>
+          <Badge variant="secondary" className="bg-secondary text-foreground">
+            {trackedIssueCount} suivies
+          </Badge>
         </div>
       </CardHeader>
       <CardContent>
@@ -90,24 +95,29 @@ export function SessionsTable({
             ))}
           </div>
         ) : entries.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-border px-4 py-8 text-sm text-muted-foreground">
+          <div className="dashboard-subtle-panel px-4 py-8 text-sm text-muted-foreground">
             Aucune session active.
           </div>
         ) : (
-          <Table>
+          <Table className="min-w-[54rem]">
             <TableHeader>
               <TableRow>
                 <TableHead>Issue</TableHead>
                 <TableHead>État</TableHead>
                 <TableHead>Session</TableHead>
                 <TableHead>Durée / tours</TableHead>
-                <TableHead className="min-w-[18rem]">Mise à jour Codex</TableHead>
+                <TableHead className="min-w-[18rem]">
+                  Mise à jour Codex
+                </TableHead>
                 <TableHead>Jetons</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {entries.map((entry) => (
-                <TableRow key={entry.issue_identifier}>
+                <TableRow
+                  key={entry.issue_identifier}
+                  className="border-border/70"
+                >
                   <TableCell className="align-top">
                     <div className="grid gap-1">
                       <span className="font-semibold text-foreground">
@@ -150,10 +160,11 @@ export function SessionsTable({
                   </TableCell>
                   <TableCell className="max-w-[26rem] align-top whitespace-normal">
                     <div className="grid gap-1">
-                      <span className="line-clamp-2 text-sm text-foreground">
-                        {entry.last_message || String(entry.last_event || "n/d")}
+                      <span className="line-clamp-2 text-sm leading-6 text-foreground">
+                        {entry.last_message ||
+                          String(entry.last_event || "n/d")}
                       </span>
-                      <span className="text-xs text-muted-foreground">
+                      <span className="text-xs text-ink-soft">
                         {entry.last_event || "n/d"}
                         {entry.last_event_at ? ` · ${entry.last_event_at}` : ""}
                       </span>
@@ -177,5 +188,5 @@ export function SessionsTable({
         )}
       </CardContent>
     </Card>
-  )
+  );
 }

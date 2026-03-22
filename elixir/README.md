@@ -200,6 +200,12 @@ The observability UI now runs on a minimal Phoenix stack:
 - JSON API for operational debugging under `/api/v1/*`
 - Bandit as the HTTP server
 - Static dashboard assets emitted to `priv/static/dashboard`
+- Shared dashboard design guidance in [`docs/dashboard-design-system.md`](docs/dashboard-design-system.md)
+- Dashboard implementation guardrails for agents in [`assets/AGENT.md`](assets/AGENT.md)
+
+The current dashboard direction is a dark, dense operational workspace with a
+Qonto-inspired visual hierarchy: flush sidebar, restrained header, flat data
+surfaces, and utility-first copy.
 
 For local UI work:
 

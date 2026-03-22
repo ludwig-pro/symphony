@@ -3,50 +3,56 @@ import {
   rateLimitCards,
   rateLimitProfile,
   type DashboardPayload,
-} from "@/lib/dashboard"
-import { Badge } from "@/components/ui/badge"
+} from "@/lib/dashboard";
+import { Badge } from "@/components/ui/badge";
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card"
+} from "@/components/ui/card";
 
 type RateLimitsPanelProps = {
-  snapshot: DashboardPayload | null
-}
+  snapshot: DashboardPayload | null;
+};
 
 function toneClasses(tone: "positive" | "warning" | "danger") {
   if (tone === "danger") {
-    return "border-rose-200 bg-rose-50 text-rose-700"
+    return "border-danger/20 bg-danger/10 text-danger";
   }
 
   if (tone === "warning") {
-    return "border-amber-200 bg-amber-50 text-amber-700"
+    return "border-warning/20 bg-warning/10 text-[color:var(--color-warning)]";
   }
 
-  return "border-emerald-200 bg-emerald-50 text-emerald-700"
+  return "border-success/20 bg-success/10 text-success";
 }
 
 export function RateLimitsPanel({ snapshot }: RateLimitsPanelProps) {
-  const cards = rateLimitCards(snapshot?.rate_limits)
-  const profile = rateLimitProfile(snapshot?.rate_limits)
+  const cards = rateLimitCards(snapshot?.rate_limits);
+  const profile = rateLimitProfile(snapshot?.rate_limits);
 
   return (
-    <Card className="shadow-sm" id="limits">
+    <Card id="limits">
       <CardHeader>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <CardDescription>Limites de débit</CardDescription>
+            <CardDescription className="dashboard-kicker">
+              Limites de débit
+            </CardDescription>
             <CardTitle>Quotas amont</CardTitle>
           </div>
-          {profile ? <Badge variant="secondary">{profile}</Badge> : null}
+          {profile ? (
+            <Badge variant="secondary" className="bg-secondary/80">
+              {profile}
+            </Badge>
+          ) : null}
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
         {cards.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-border px-4 py-5 text-sm text-muted-foreground">
+          <div className="dashboard-subtle-panel px-4 py-5 text-sm text-muted-foreground">
             Aucune donnée de limite de débit disponible pour le moment.
           </div>
         ) : (
@@ -54,7 +60,7 @@ export function RateLimitsPanel({ snapshot }: RateLimitsPanelProps) {
             {cards.map((card) => (
               <div
                 key={card.label}
-                className={`rounded-2xl border px-4 py-3 ${toneClasses(card.tone)}`}
+                className={`rounded-[calc(var(--radius)*0.95)] border px-4 py-3 ${toneClasses(card.tone)}`}
               >
                 <div className="flex items-center justify-between gap-3">
                   <p className="text-sm font-semibold">{card.label}</p>
@@ -66,15 +72,13 @@ export function RateLimitsPanel({ snapshot }: RateLimitsPanelProps) {
           </div>
         )}
 
-        <div className="rounded-2xl border border-border/70 bg-muted/30 p-4">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-            Charge utile brute
-          </p>
+        <div className="dashboard-subtle-panel p-4">
+          <p className="dashboard-kicker text-[0.66rem]">Charge utile brute</p>
           <pre className="mt-3 overflow-x-auto text-xs leading-6 text-muted-foreground">
             {prettyValue(snapshot?.rate_limits)}
           </pre>
         </div>
       </CardContent>
     </Card>
-  )
+  );
 }

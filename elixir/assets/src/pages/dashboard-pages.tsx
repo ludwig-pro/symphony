@@ -1,28 +1,32 @@
-import { ArrowRightIcon } from "lucide-react"
+import { ArrowRightIcon } from "lucide-react";
 
-import { DashboardLink } from "@/components/dashboard-link"
-import { AgentPanel } from "@/components/agent-panel"
-import { InsightsPanel } from "@/components/insights-panel"
-import { RateLimitsPanel } from "@/components/rate-limits-panel"
-import { RetryQueue } from "@/components/retry-queue"
-import { SectionCards } from "@/components/section-cards"
-import { SessionsTable } from "@/components/sessions-table"
-import { Button } from "@/components/ui/button"
-import { type DashboardPayload, type RetryEntry, type RunningEntry } from "@/lib/dashboard"
-import { type DashboardPageId } from "@/lib/navigation"
+import { DashboardLink } from "@/components/dashboard-link";
+import { AgentPanel } from "@/components/agent-panel";
+import { InsightsPanel } from "@/components/insights-panel";
+import { RateLimitsPanel } from "@/components/rate-limits-panel";
+import { RetryQueue } from "@/components/retry-queue";
+import { SectionCards } from "@/components/section-cards";
+import { SessionsTable } from "@/components/sessions-table";
+import { Button } from "@/components/ui/button";
+import {
+  type DashboardPayload,
+  type RetryEntry,
+  type RunningEntry,
+} from "@/lib/dashboard";
+import { type DashboardPageId } from "@/lib/navigation";
 
 type DashboardPageContentProps = {
-  pageId: DashboardPageId
-  snapshot: DashboardPayload | null
-  running: RunningEntry[]
-  retrying: RetryEntry[]
-  trackedIssueCount: number
-  isLoading: boolean
-  isSwitchingAgent: boolean
-  now: number
-  onNavigate: (href: string) => void
-  onSwitchAgent: (presetId: string) => void
-}
+  pageId: DashboardPageId;
+  snapshot: DashboardPayload | null;
+  running: RunningEntry[];
+  retrying: RetryEntry[];
+  trackedIssueCount: number;
+  isLoading: boolean;
+  isSwitchingAgent: boolean;
+  now: number;
+  onNavigate: (href: string) => void;
+  onSwitchAgent: (presetId: string) => void;
+};
 
 function OverviewPage({
   snapshot,
@@ -36,7 +40,7 @@ function OverviewPage({
   onSwitchAgent,
 }: Omit<DashboardPageContentProps, "pageId">) {
   return (
-    <>
+    <div className="flex flex-col gap-8">
       <SectionCards snapshot={snapshot} isLoading={isLoading} now={now} />
 
       <div className="flex flex-wrap gap-2">
@@ -66,7 +70,7 @@ function OverviewPage({
         </Button>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.7fr)_23rem]">
+      <div className="dashboard-grid">
         <SessionsTable
           entries={running}
           trackedIssueCount={trackedIssueCount}
@@ -74,7 +78,7 @@ function OverviewPage({
           now={now}
         />
 
-        <div className="flex flex-col gap-6">
+        <div className="dashboard-rail">
           <AgentPanel
             agent={snapshot?.agent ?? null}
             isLoading={isLoading}
@@ -87,8 +91,8 @@ function OverviewPage({
       </div>
 
       <RetryQueue entries={retrying} />
-    </>
-  )
+    </div>
+  );
 }
 
 function SessionsPage({
@@ -96,7 +100,10 @@ function SessionsPage({
   trackedIssueCount,
   isLoading,
   now,
-}: Pick<DashboardPageContentProps, "running" | "trackedIssueCount" | "isLoading" | "now">) {
+}: Pick<
+  DashboardPageContentProps,
+  "running" | "trackedIssueCount" | "isLoading" | "now"
+>) {
   return (
     <SessionsTable
       entries={running}
@@ -104,7 +111,7 @@ function SessionsPage({
       isLoading={isLoading}
       now={now}
     />
-  )
+  );
 }
 
 function AgentsPage({
@@ -126,7 +133,7 @@ function AgentsPage({
       />
       <InsightsPanel snapshot={snapshot} />
     </div>
-  )
+  );
 }
 
 function LimitsPage({ snapshot }: Pick<DashboardPageContentProps, "snapshot">) {
@@ -135,11 +142,13 @@ function LimitsPage({ snapshot }: Pick<DashboardPageContentProps, "snapshot">) {
       <RateLimitsPanel snapshot={snapshot} />
       <InsightsPanel snapshot={snapshot} />
     </div>
-  )
+  );
 }
 
-function RetriesPage({ retrying }: Pick<DashboardPageContentProps, "retrying">) {
-  return <RetryQueue entries={retrying} />
+function RetriesPage({
+  retrying,
+}: Pick<DashboardPageContentProps, "retrying">) {
+  return <RetryQueue entries={retrying} />;
 }
 
 export function DashboardPageContent(props: DashboardPageContentProps) {
@@ -152,7 +161,7 @@ export function DashboardPageContent(props: DashboardPageContentProps) {
           isLoading={props.isLoading}
           now={props.now}
         />
-      )
+      );
 
     case "agents":
       return (
@@ -162,13 +171,13 @@ export function DashboardPageContent(props: DashboardPageContentProps) {
           isSwitchingAgent={props.isSwitchingAgent}
           onSwitchAgent={props.onSwitchAgent}
         />
-      )
+      );
 
     case "limits":
-      return <LimitsPage snapshot={props.snapshot} />
+      return <LimitsPage snapshot={props.snapshot} />;
 
     case "retries":
-      return <RetriesPage retrying={props.retrying} />
+      return <RetriesPage retrying={props.retrying} />;
 
     case "overview":
     default:
@@ -184,6 +193,6 @@ export function DashboardPageContent(props: DashboardPageContentProps) {
           onNavigate={props.onNavigate}
           onSwitchAgent={props.onSwitchAgent}
         />
-      )
+      );
   }
 }

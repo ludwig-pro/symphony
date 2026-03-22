@@ -3,7 +3,7 @@ import {
   ArrowRightLeftIcon,
   Clock3Icon,
   CoinsIcon,
-} from "lucide-react"
+} from "lucide-react";
 
 import {
   formatInt,
@@ -11,8 +11,8 @@ import {
   totalRuntimeSeconds,
   trackedIssueCopy,
   type DashboardPayload,
-} from "@/lib/dashboard"
-import { Badge } from "@/components/ui/badge"
+} from "@/lib/dashboard";
+import { Badge } from "@/components/ui/badge";
 import {
   Card,
   CardAction,
@@ -20,22 +20,22 @@ import {
   CardFooter,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card"
-import { Skeleton } from "@/components/ui/skeleton"
+} from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 
 type SectionCardsProps = {
-  snapshot: DashboardPayload | null
-  isLoading: boolean
-  now: number
-}
+  snapshot: DashboardPayload | null;
+  isLoading: boolean;
+  now: number;
+};
 
 export function SectionCards({ snapshot, isLoading, now }: SectionCardsProps) {
-  const currentCounts = snapshot?.counts ?? { running: 0, retrying: 0 }
+  const currentCounts = snapshot?.counts ?? { running: 0, retrying: 0 };
   const currentTotals = snapshot?.codex_totals ?? {
     input_tokens: 0,
     output_tokens: 0,
     total_tokens: 0,
-  }
+  };
 
   const cards = [
     {
@@ -66,32 +66,45 @@ export function SectionCards({ snapshot, isLoading, now }: SectionCardsProps) {
       badge: "Runtime actif",
       icon: Clock3Icon,
     },
-  ]
+  ];
 
   return (
     <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-4">
       {cards.map((card) => (
         <Card
           key={card.label}
-          className="bg-gradient-to-br from-card via-card to-primary/5 shadow-sm"
+          className="transition-colors duration-200 hover:bg-surface-2"
         >
           <CardHeader>
-            <CardDescription>{card.label}</CardDescription>
-            <CardTitle className="text-3xl tracking-tight">
-              {isLoading ? <Skeleton className="h-8 w-24 rounded-lg" /> : card.value}
+            <CardDescription className="dashboard-kicker text-[0.68rem]">
+              {card.label}
+            </CardDescription>
+            <CardTitle className="metric-value">
+              {isLoading ? (
+                <Skeleton className="h-8 w-24 rounded-lg" />
+              ) : (
+                card.value
+              )}
             </CardTitle>
             <CardAction>
-              <Badge variant="outline" className="border-primary/15 bg-primary/8 text-primary">
+              <Badge
+                variant="outline"
+                className="border-primary/15 bg-primary/8 text-primary"
+              >
                 <card.icon className="size-3.5" />
                 {card.badge}
               </Badge>
             </CardAction>
           </CardHeader>
-          <CardFooter className="items-start text-sm text-muted-foreground">
-            {isLoading ? <Skeleton className="h-4 w-full rounded-md" /> : card.copy}
+          <CardFooter className="items-start text-sm leading-6 text-muted-foreground">
+            {isLoading ? (
+              <Skeleton className="h-4 w-full rounded-md" />
+            ) : (
+              card.copy
+            )}
           </CardFooter>
         </Card>
       ))}
     </div>
-  )
+  );
 }
