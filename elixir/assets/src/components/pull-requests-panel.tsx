@@ -3,12 +3,9 @@ import {
   ArrowUpRightIcon,
   GitPullRequestIcon,
   InfoIcon,
-} from "lucide-react"
+} from "lucide-react";
 
-import {
-  formatSnapshotDate,
-  formatInt,
-} from "@/lib/dashboard"
+import { formatSnapshotDate, formatInt } from "@/lib/dashboard";
 import {
   providerLabel,
   pullRequestBucketOptions,
@@ -23,18 +20,18 @@ import {
   type PullRequestProviderFilter,
   type PullRequestsPayload,
   type PullRequestStateFilter,
-} from "@/lib/pull-requests"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
+} from "@/lib/pull-requests";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card"
-import { Skeleton } from "@/components/ui/skeleton"
+} from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
   TableBody,
@@ -42,52 +39,52 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table"
-import { cn } from "@/lib/utils"
+} from "@/components/ui/table";
+import { cn } from "@/lib/utils";
 
 type PullRequestsPanelProps = {
-  payload: PullRequestsPayload | null
+  payload: PullRequestsPayload | null;
   filters: {
-    provider: PullRequestProviderFilter
-    bucket: PullRequestBucket
-    state: PullRequestStateFilter
-  }
-  isLoading: boolean
-  isFetching: boolean
-  error: string | null
-  onProviderChange: (provider: PullRequestProviderFilter) => void
-  onBucketChange: (bucket: PullRequestBucket) => void
-  onStateChange: (state: PullRequestStateFilter) => void
-}
+    provider: PullRequestProviderFilter;
+    bucket: PullRequestBucket;
+    state: PullRequestStateFilter;
+  };
+  isLoading: boolean;
+  isFetching: boolean;
+  error: string | null;
+  onProviderChange: (provider: PullRequestProviderFilter) => void;
+  onBucketChange: (bucket: PullRequestBucket) => void;
+  onStateChange: (state: PullRequestStateFilter) => void;
+};
 
 function providerBadgeClass(provider: PullRequestProvider) {
   return provider === "github"
     ? "border-sky-500/20 bg-sky-500/10 text-sky-600"
-    : "border-orange-500/20 bg-orange-500/10 text-orange-600"
+    : "border-orange-500/20 bg-orange-500/10 text-orange-600";
 }
 
 function itemStateBadgeClass(state: string) {
   return state === "closed"
     ? "border-border bg-secondary text-foreground"
-    : "border-success/20 bg-success/10 text-success"
+    : "border-success/20 bg-success/10 text-success";
 }
 
 function actorLabel(actor: PullRequestActor) {
-  return actor.display_name || actor.login
+  return actor.display_name || actor.login;
 }
 
 function actorSummary(actors: PullRequestActor[], emptyLabel: string) {
   if (actors.length === 0) {
-    return emptyLabel
+    return emptyLabel;
   }
 
-  const visible = actors.slice(0, 2).map(actorLabel).join(", ")
+  const visible = actors.slice(0, 2).map(actorLabel).join(", ");
 
   if (actors.length <= 2) {
-    return visible
+    return visible;
   }
 
-  return `${visible} +${actors.length - 2}`
+  return `${visible} +${actors.length - 2}`;
 }
 
 function statusEntries(
@@ -95,27 +92,27 @@ function statusEntries(
   providerFilter: PullRequestProviderFilter,
 ) {
   if (!payload) {
-    return []
+    return [];
   }
 
   const statuses: Array<[PullRequestProvider, ProviderStatus]> = [
     ["github", payload.providers.github],
     ["gitlab", payload.providers.gitlab],
-  ]
+  ];
 
   if (providerFilter === "all") {
-    return statuses
+    return statuses;
   }
 
-  return statuses.filter(([provider]) => provider === providerFilter)
+  return statuses.filter(([provider]) => provider === providerFilter);
 }
 
 function ProviderStatusAlerts({
   payload,
   providerFilter,
 }: {
-  payload: PullRequestsPayload | null
-  providerFilter: PullRequestProviderFilter
+  payload: PullRequestsPayload | null;
+  providerFilter: PullRequestProviderFilter;
 }) {
   return (
     <>
@@ -127,7 +124,7 @@ function ProviderStatusAlerts({
               <AlertTitle>{providerLabel(provider)}</AlertTitle>
               <AlertDescription>{status.error}</AlertDescription>
             </Alert>
-          )
+          );
         }
 
         if (status.warning) {
@@ -137,13 +134,13 @@ function ProviderStatusAlerts({
               <AlertTitle>{providerLabel(provider)}</AlertTitle>
               <AlertDescription>{status.warning}</AlertDescription>
             </Alert>
-          )
+          );
         }
 
-        return null
+        return null;
       })}
     </>
-  )
+  );
 }
 
 function FilterButtons<T extends string>({
@@ -152,10 +149,10 @@ function FilterButtons<T extends string>({
   value,
   onChange,
 }: {
-  label: string
-  options: Array<{ value: T; label: string }>
-  value: T
-  onChange: (value: T) => void
+  label: string;
+  options: Array<{ value: T; label: string }>;
+  value: T;
+  onChange: (value: T) => void;
 }) {
   return (
     <div className="grid gap-2">
@@ -176,7 +173,7 @@ function FilterButtons<T extends string>({
         ))}
       </div>
     </div>
-  )
+  );
 }
 
 function PullRequestTable({ items }: { items: PullRequestEntry[] }) {
@@ -228,7 +225,10 @@ function PullRequestTable({ items }: { items: PullRequestEntry[] }) {
                   {pullRequestStateLabel(item.state)}
                 </Badge>
                 {item.is_draft ? (
-                  <Badge variant="secondary" className="bg-secondary text-foreground">
+                  <Badge
+                    variant="secondary"
+                    className="bg-secondary text-foreground"
+                  >
                     Draft
                   </Badge>
                 ) : null}
@@ -268,7 +268,7 @@ function PullRequestTable({ items }: { items: PullRequestEntry[] }) {
         ))}
       </TableBody>
     </Table>
-  )
+  );
 }
 
 export function PullRequestsPanel({
@@ -281,7 +281,7 @@ export function PullRequestsPanel({
   onBucketChange,
   onStateChange,
 }: PullRequestsPanelProps) {
-  const items = payload?.items ?? []
+  const items = payload?.items ?? [];
 
   return (
     <div className="flex flex-col gap-6">
@@ -294,7 +294,8 @@ export function PullRequestsPanel({
               </CardDescription>
               <CardTitle>Filtres Pull Requests</CardTitle>
               <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                Visualise les PR et MR qui te concernent sans quitter le dashboard.
+                Visualise les PR et MR qui te concernent sans quitter le
+                dashboard.
               </p>
             </div>
             <Badge variant="secondary" className="bg-secondary text-foreground">
@@ -355,7 +356,10 @@ export function PullRequestsPanel({
                 Résultats triés par dernière mise à jour décroissante.
               </p>
             </div>
-            <Badge variant="outline" className="border-border/70 bg-card text-foreground">
+            <Badge
+              variant="outline"
+              className="border-border/70 bg-card text-foreground"
+            >
               {isFetching ? "Actualisation…" : "À jour"}
             </Badge>
           </div>
@@ -378,5 +382,5 @@ export function PullRequestsPanel({
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }
