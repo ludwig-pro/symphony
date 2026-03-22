@@ -642,7 +642,7 @@ defmodule SymphonyElixir.ExtensionsTest do
 
     javascript = response(get(build_conn(), js_path), 200)
     assert javascript =~ "/api/v1/state"
-    assert javascript =~ "Tableau de bord des opérations"
+    assert javascript =~ "Overview"
 
     stylesheet = response(get(build_conn(), css_path), 200)
     assert stylesheet =~ "--sidebar:"
