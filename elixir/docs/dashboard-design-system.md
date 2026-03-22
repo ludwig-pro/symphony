@@ -10,10 +10,10 @@
 
 ### Color
 
-- `--background`: ivoire chaud pour laisser respirer les données.
-- `--foreground`: ardoise brune pour éviter le contraste noir pur.
+- `--background`: base claire disponible pour les composants génériques.
+- `--foreground`: encre neutre utilisée hors runtime sombre.
 - `--primary`: bleu acier pour les actions et liens structurants.
-- `--accent`: cuivre doux réservé aux marqueurs de relief et aux badges secondaires.
+- `--accent`: accent secondaire réservé aux marqueurs de relief et badges ponctuels.
 - `--surface-0` à `--surface-3`: paliers de profondeur pour shell, panneaux et sous-panneaux.
 - `--success`, `--warning`, `--danger`: états opérationnels.
 
@@ -45,7 +45,7 @@
 - `dashboard-page`: rythme vertical du contenu principal.
 - `dashboard-grid`: surface principale + rail contextuel.
 - `dashboard-rail`: empilement des panneaux secondaires.
-- `dashboard-panel`: panneau principal avec bordure douce et blur léger.
+- `dashboard-panel`: panneau principal plat, sombre, séparé par bordure fine.
 - `dashboard-subtle-panel`: sous-surface pour listes, notes et états vides.
 
 ## Qonto-Inspired Constraints
@@ -63,3 +63,5 @@
 - Une seule couleur d'accent active à l'écran à la fois.
 - Les surfaces secondaires restent mates; l'accent ne sert pas de fond principal.
 - Les états de runtime doivent rester lisibles sans dépendre uniquement de la couleur.
+- Toute évolution dashboard doit d'abord passer par les tokens ou primitives
+  partagées avant d'introduire un style local.
