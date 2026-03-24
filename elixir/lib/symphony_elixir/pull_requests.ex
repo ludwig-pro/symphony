@@ -445,8 +445,8 @@ defmodule SymphonyElixir.PullRequests do
   end
 
   defp actor_field(actor, string_keys, atom_keys) do
-    Enum.find_value(string_keys, &(string_value(Map.get(actor, &1)))) ||
-      Enum.find_value(atom_keys, &(string_value(Map.get(actor, &1))))
+    Enum.find_value(string_keys, &string_value(Map.get(actor, &1))) ||
+      Enum.find_value(atom_keys, &string_value(Map.get(actor, &1)))
   end
 
   defp run_system_command(command, args) do
