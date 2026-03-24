@@ -450,10 +450,10 @@ defmodule SymphonyElixir.PullRequests do
   end
 
   defp run_system_command(command, args) do
-    case command_path(command) do
-      nil -> {:error, {:enoent, ""}}
-      path -> normalize_system_command_result(System.cmd(path, args, stderr_to_stdout: true))
-    end
+    command
+    |> command_path()
+    |> System.cmd(args, stderr_to_stdout: true)
+    |> normalize_system_command_result()
   end
 
   defp normalize_system_command_result({output, 0}), do: {:ok, output}
@@ -472,7 +472,7 @@ defmodule SymphonyElixir.PullRequests do
     |> DateTime.to_iso8601()
   end
 
-  defp timestamp_sort_value(nil), do: 0
+  defp timestamp_sort_value(timestamp) when not is_binary(timestamp), do: 0
 
   defp timestamp_sort_value(timestamp) when is_binary(timestamp) do
     case DateTime.from_iso8601(timestamp) do
@@ -481,15 +481,11 @@ defmodule SymphonyElixir.PullRequests do
     end
   end
 
-  defp timestamp_sort_value(_timestamp), do: 0
-
   defp integer_value(value) when is_integer(value), do: value
   defp integer_value(_value), do: nil
 
-  defp string_value(nil), do: nil
   defp string_value(value) when is_binary(value), do: value
-  defp string_value(value) when is_atom(value), do: Atom.to_string(value)
-  defp string_value(_value), do: nil
+  defp string_value(value), do: if(is_atom(value) and not is_nil(value), do: Atom.to_string(value), else: nil)
 
   defp truthy?(value), do: value in [true, "true", 1]
 end
