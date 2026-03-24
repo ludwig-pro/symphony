@@ -1,23 +1,20 @@
-import { GaugeIcon, SearchIcon } from "lucide-react";
+import { GaugeIcon } from "lucide-react";
 
 import { counts, dashboardMode, type DashboardPayload } from "@/lib/dashboard";
 import { DashboardLink } from "@/components/dashboard-link";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { dashboardPages, dashboardSecondaryLinks } from "@/lib/navigation";
+import { dashboardDrawerPages } from "@/lib/navigation";
 import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
-  SidebarGroupLabel,
   SidebarHeader,
-  SidebarInput,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarSeparator,
   useSidebar,
 } from "@/components/ui/sidebar";
 
@@ -55,7 +52,7 @@ export function AppSidebar({
 
   return (
     <Sidebar variant="inset" collapsible="icon">
-      <SidebarHeader className="gap-3 px-4 pt-4">
+      <SidebarHeader className="px-4 pt-4">
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton
@@ -85,25 +82,13 @@ export function AppSidebar({
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
-
-        <div className="group-data-[collapsible=icon]:hidden">
-          <div className="relative">
-            <SearchIcon className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-sidebar-foreground/45" />
-            <SidebarInput
-              aria-label="Rechercher une section"
-              placeholder="Rechercher"
-              className="h-10 rounded-lg border-sidebar-border/70 bg-surface-0 pl-9 text-sm"
-            />
-          </div>
-        </div>
       </SidebarHeader>
 
       <SidebarContent className="px-2.5">
         <SidebarGroup>
-          <SidebarGroupLabel>Navigation</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {dashboardPages.map((page) => (
+              {dashboardDrawerPages.map((page) => (
                 <SidebarMenuItem key={page.path}>
                   <SidebarMenuButton
                     asChild
@@ -114,26 +99,6 @@ export function AppSidebar({
                       <page.icon />
                       <span>{page.label}</span>
                     </DashboardLink>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
-        <SidebarSeparator />
-
-        <SidebarGroup>
-          <SidebarGroupLabel>Interfaces</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {dashboardSecondaryLinks.map((link) => (
-                <SidebarMenuItem key={link.href}>
-                  <SidebarMenuButton asChild tooltip={link.label}>
-                    <a href={link.href}>
-                      <link.icon />
-                      <span>{link.label}</span>
-                    </a>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}

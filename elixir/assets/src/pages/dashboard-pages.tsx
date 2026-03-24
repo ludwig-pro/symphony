@@ -3,6 +3,7 @@ import { ArrowRightIcon } from "lucide-react";
 import { DashboardLink } from "@/components/dashboard-link";
 import { AgentPanel } from "@/components/agent-panel";
 import { InsightsPanel } from "@/components/insights-panel";
+import { PullRequestsPanel } from "@/components/pull-requests-panel";
 import { RateLimitsPanel } from "@/components/rate-limits-panel";
 import { RetryQueue } from "@/components/retry-queue";
 import { SectionCards } from "@/components/section-cards";
@@ -13,6 +14,13 @@ import {
   type RetryEntry,
   type RunningEntry,
 } from "@/lib/dashboard";
+import {
+  type PullRequestBucket,
+  type PullRequestFilters,
+  type PullRequestsPayload,
+  type PullRequestProviderFilter,
+  type PullRequestStateFilter,
+} from "@/lib/pull-requests";
 import { type DashboardPageId } from "@/lib/navigation";
 
 type DashboardPageContentProps = {
@@ -20,12 +28,20 @@ type DashboardPageContentProps = {
   snapshot: DashboardPayload | null;
   running: RunningEntry[];
   retrying: RetryEntry[];
+  pullRequestsPayload: PullRequestsPayload | null;
+  pullRequestFilters: PullRequestFilters;
+  pullRequestsError: string | null;
+  pullRequestsLoading: boolean;
+  pullRequestsFetching: boolean;
   trackedIssueCount: number;
   isLoading: boolean;
   isSwitchingAgent: boolean;
   now: number;
   onNavigate: (href: string) => void;
   onSwitchAgent: (presetId: string) => void;
+  onPullRequestProviderChange: (provider: PullRequestProviderFilter) => void;
+  onPullRequestBucketChange: (bucket: PullRequestBucket) => void;
+  onPullRequestStateChange: (state: PullRequestStateFilter) => void;
 };
 
 function OverviewPage({
@@ -38,7 +54,18 @@ function OverviewPage({
   now,
   onNavigate,
   onSwitchAgent,
-}: Omit<DashboardPageContentProps, "pageId">) {
+}: Pick<
+  DashboardPageContentProps,
+  | "snapshot"
+  | "running"
+  | "retrying"
+  | "trackedIssueCount"
+  | "isLoading"
+  | "isSwitchingAgent"
+  | "now"
+  | "onNavigate"
+  | "onSwitchAgent"
+>) {
   return (
     <div className="flex flex-col gap-8">
       <SectionCards snapshot={snapshot} isLoading={isLoading} now={now} />
@@ -59,6 +86,12 @@ function OverviewPage({
         <Button asChild variant="outline" size="sm">
           <DashboardLink href="/agents" onNavigate={onNavigate}>
             Ouvrir le contrôle agent
+            <ArrowRightIcon className="size-3.5" />
+          </DashboardLink>
+        </Button>
+        <Button asChild variant="outline" size="sm">
+          <DashboardLink href="/pull-requests" onNavigate={onNavigate}>
+            Voir les pull requests
             <ArrowRightIcon className="size-3.5" />
           </DashboardLink>
         </Button>
@@ -151,6 +184,40 @@ function RetriesPage({
   return <RetryQueue entries={retrying} />;
 }
 
+function PullRequestsPage({
+  pullRequestsPayload,
+  pullRequestFilters,
+  pullRequestsError,
+  pullRequestsLoading,
+  pullRequestsFetching,
+  onPullRequestProviderChange,
+  onPullRequestBucketChange,
+  onPullRequestStateChange,
+}: Pick<
+  DashboardPageContentProps,
+  | "pullRequestsPayload"
+  | "pullRequestFilters"
+  | "pullRequestsError"
+  | "pullRequestsLoading"
+  | "pullRequestsFetching"
+  | "onPullRequestProviderChange"
+  | "onPullRequestBucketChange"
+  | "onPullRequestStateChange"
+>) {
+  return (
+    <PullRequestsPanel
+      payload={pullRequestsPayload}
+      filters={pullRequestFilters}
+      isLoading={pullRequestsLoading}
+      isFetching={pullRequestsFetching}
+      error={pullRequestsError}
+      onProviderChange={onPullRequestProviderChange}
+      onBucketChange={onPullRequestBucketChange}
+      onStateChange={onPullRequestStateChange}
+    />
+  );
+}
+
 export function DashboardPageContent(props: DashboardPageContentProps) {
   switch (props.pageId) {
     case "sessions":
@@ -178,6 +245,20 @@ export function DashboardPageContent(props: DashboardPageContentProps) {
 
     case "retries":
       return <RetriesPage retrying={props.retrying} />;
+
+    case "pull-requests":
+      return (
+        <PullRequestsPage
+          pullRequestsPayload={props.pullRequestsPayload}
+          pullRequestFilters={props.pullRequestFilters}
+          pullRequestsError={props.pullRequestsError}
+          pullRequestsLoading={props.pullRequestsLoading}
+          pullRequestsFetching={props.pullRequestsFetching}
+          onPullRequestProviderChange={props.onPullRequestProviderChange}
+          onPullRequestBucketChange={props.onPullRequestBucketChange}
+          onPullRequestStateChange={props.onPullRequestStateChange}
+        />
+      );
 
     case "overview":
     default:

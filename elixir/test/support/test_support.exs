@@ -47,6 +47,9 @@ defmodule SymphonyElixir.TestSupport do
           Application.delete_env(:symphony_elixir, :claude_bridge_probe)
           Application.delete_env(:symphony_elixir, :memory_tracker_issues)
           Application.delete_env(:symphony_elixir, :memory_tracker_recipient)
+          Application.delete_env(:symphony_elixir, :pull_requests_cli_runner)
+          Application.delete_env(:symphony_elixir, :pull_requests_command_path_resolver)
+          Application.delete_env(:symphony_elixir, :pull_requests_provider_timeout_ms)
           File.rm_rf(workflow_root)
         end)
 

@@ -12,6 +12,7 @@ import {
 } from "@/lib/dashboard";
 import { useDashboardState } from "@/hooks/use-dashboard-state";
 import { useDashboardRouter } from "@/hooks/use-dashboard-router";
+import { usePullRequestsState } from "@/hooks/use-pull-requests-state";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { DashboardPageContent } from "@/pages/dashboard-pages";
@@ -26,6 +27,7 @@ function App() {
     isSwitchingAgent,
     switchAgent,
   } = useDashboardState();
+  const pullRequestsState = usePullRequestsState(page.id === "pull-requests");
   const deferredSnapshot = useDeferredValue(snapshot);
   const activeSnapshot = deferredSnapshot ?? snapshot;
   const running = runningEntries(activeSnapshot);
@@ -78,6 +80,11 @@ function App() {
                   snapshot={activeSnapshot}
                   running={running}
                   retrying={retrying}
+                  pullRequestsPayload={pullRequestsState.payload}
+                  pullRequestFilters={pullRequestsState.filters}
+                  pullRequestsError={pullRequestsState.error}
+                  pullRequestsLoading={pullRequestsState.isLoading}
+                  pullRequestsFetching={pullRequestsState.isFetching}
                   trackedIssueCount={trackedIssueCount(
                     activeSnapshot?.counts ?? { running: 0, retrying: 0 },
                   )}
@@ -86,6 +93,9 @@ function App() {
                   now={now}
                   onNavigate={navigate}
                   onSwitchAgent={switchAgent}
+                  onPullRequestProviderChange={pullRequestsState.setProvider}
+                  onPullRequestBucketChange={pullRequestsState.setBucket}
+                  onPullRequestStateChange={pullRequestsState.setState}
                 />
               </div>
             </div>
