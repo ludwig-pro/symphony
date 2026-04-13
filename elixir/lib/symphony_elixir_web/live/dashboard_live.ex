@@ -64,6 +64,15 @@ defmodule SymphonyElixirWeb.DashboardLive do
               <span class="status-badge-dot"></span>
               Offline
             </span>
+            <button
+              type="button"
+              class="theme-toggle"
+              aria-label="Toggle theme"
+              onclick="var h=document.documentElement,d=h.getAttribute('data-theme')==='dark';h[d?'removeAttribute':'setAttribute']('data-theme','dark');localStorage.setItem('symphony-theme',d?'light':'dark');"
+            >
+              <span class="theme-icon-sun">&#9728;&#65039;</span>
+              <span class="theme-icon-moon">&#9790;&#65039;</span>
+            </button>
           </div>
         </div>
       </header>

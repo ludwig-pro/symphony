@@ -37,6 +37,13 @@ defmodule SymphonyElixirWeb.Layouts do
           });
         </script>
         <link rel="stylesheet" href="/dashboard.css" />
+        <script>
+          (function() {
+            var stored = localStorage.getItem("symphony-theme");
+            var theme = stored || (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+            if (theme === "dark") document.documentElement.setAttribute("data-theme", "dark");
+          })();
+        </script>
       </head>
       <body>
         {@inner_content}
